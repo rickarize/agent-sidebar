@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { PromptWithTongue } from "./PromptWithTongue";
 import { DebugPanel } from "./DebugPanel";
+import { MetaRow } from "./MetaRow";
 import { useStickToBottom } from "./useStickToBottom";
 import type { ChecklistState, ItemStatus, ElicitationQuestion } from "./types";
 
@@ -92,32 +93,34 @@ const datasetQuestions: ElicitationQuestion[] = [
 
 const LANE_WIDTH = 560;
 
-const fakeMessages: { from: "user" | "assistant"; text: string }[] = [
-  { from: "user", text: "Can you help me set up a new dataset?" },
-  { from: "assistant", text: "Sure! What kind of data are you working with?" },
-  { from: "user", text: "Mostly Q&A pairs for evaluating an LLM." },
-  { from: "assistant", text: "Got it. How many examples are you targeting?" },
-  { from: "user", text: "Somewhere around 500 to start." },
-  { from: "assistant", text: "That's a solid baseline. Do you need train/test splits?" },
-  { from: "user", text: "Yeah, standard three-way split would be great." },
-  { from: "assistant", text: "I'll set up train, validation, and test. Any format preference?" },
-  { from: "user", text: "JSONL if possible." },
-  { from: "assistant", text: "Perfect, JSONL it is. One file per split?" },
-  { from: "user", text: "Yep, three separate files." },
-  { from: "assistant", text: "Working on that now. Should take a minute." },
-  { from: "user", text: "Cool, thanks." },
-  { from: "assistant", text: "Quick question — should I include metadata fields like source and difficulty?" },
-  { from: "user", text: "Yes, both of those would be useful." },
-  { from: "assistant", text: "Added. I'm also including a unique ID per example." },
-  { from: "user", text: "Smart, that'll help with deduplication later." },
-  { from: "assistant", text: "Exactly. The train split has 350 examples so far." },
-  { from: "user", text: "What about the other two?" },
-  { from: "assistant", text: "75 validation, 75 test. Want me to adjust the ratio?" },
-  { from: "user", text: "No, that's fine. 70/15/15 works." },
-  { from: "assistant", text: "All three files are ready. Want me to load them into the playground?" },
-  { from: "user", text: "Not yet — let me review them first." },
-  { from: "assistant", text: "Sure, they're in the output directory whenever you're ready." },
-  { from: "user", text: "Looks good, let's load them up." },
+type FakeMessage =
+  | { type: "user"; text: string }
+  | { type: "agent"; text: string }
+  | { type: "meta"; summary: string; detail?: string }
+  | { type: "agent-streaming"; text: string };
+
+const fakeMessages: FakeMessage[] = [
+  { type: "user", text: "Can you help me set up a new dataset for evaluating our Q&A model?" },
+  { type: "meta", summary: "Thought for 12 seconds", detail: "I need to understand what format the playground expects. Let me check the config and loader files to see what schema they use for datasets. The user wants Q&A evaluation, so I should look for existing dataset conventions and any validation logic that might constrain the format." },
+  { type: "agent", text: "I'll look into the current playground setup and figure out what format works best for your evaluation pipeline." },
+  { type: "meta", summary: "Read src/playground/config.ts" },
+  { type: "meta", summary: "Read src/playground/loader.ts" },
+  { type: "agent", text: "The playground expects JSONL with `question`, `answer`, and `metadata` fields. It also supports train/val/test splits via filename convention." },
+  { type: "user", text: "Great. Let's do 500 examples with standard splits." },
+  { type: "meta", summary: "Thought for 8 seconds", detail: "500 examples with a standard 70/15/15 split gives 350 train, 75 val, 75 test. I should include metadata fields that are useful for evaluation — source, difficulty, and a unique ID for dedup. The generation script needs to produce diverse question types: open-ended, factual, and multiple-choice." },
+  { type: "agent", text: "I'll generate 350 train, 75 validation, and 75 test examples. Each will have a unique ID, source tag, and difficulty rating." },
+  { type: "meta", summary: "Ran generate_dataset.py" },
+  { type: "meta", summary: "Wrote output/train.jsonl (350 examples)" },
+  { type: "meta", summary: "Wrote output/val.jsonl (75 examples)" },
+  { type: "meta", summary: "Wrote output/test.jsonl (75 examples)" },
+  { type: "agent", text: "All three files are ready. The examples cover open-ended, factual, and multiple-choice questions with a roughly even distribution." },
+  { type: "user", text: "Can you check if there are any duplicates across splits?" },
+  { type: "meta", summary: "Ran dedup_check.py" },
+  { type: "agent", text: "No duplicates found. All 500 examples have unique question text and unique IDs." },
+  { type: "user", text: "Perfect. Load them into the playground." },
+  { type: "meta", summary: "Thought for 3 seconds", detail: "I need to update the playground config to point at the new dataset files. The config uses a datasets array where each entry has a path and split name." },
+  { type: "meta", summary: "Edited src/playground/config.ts" },
+  { type: "agent-streaming", text: "Loading the dataset now. I've updated the config to point at the new files and" },
 ];
 
 export default function App() {
@@ -182,31 +185,85 @@ export default function App() {
                 padding: "16px 16px 8px",
                 display: "flex",
                 flexDirection: "column",
-                gap: 8,
+                gap: 2,
               }}
             >
-              {fakeMessages.map((msg, i) => (
-                <div
-                  key={i}
-                  style={{
-                    alignSelf: msg.from === "user" ? "flex-end" : "flex-start",
-                    maxWidth: "80%",
-                    padding: "8px 12px",
-                    borderRadius: 10,
-                    fontSize: 14,
-                    lineHeight: 1.4,
-                    background: msg.from === "user" ? "#2a2a2a" : "transparent",
-                    color: msg.from === "user" ? "#e0e0e0" : "#999",
-                    border: msg.from === "user" ? "none" : "1px solid #222",
-                  }}
-                >
-                  {msg.text}
-                </div>
-              ))}
+              {fakeMessages.map((msg, i) => {
+                if (msg.type === "user") {
+                  return (
+                    <div
+                      key={i}
+                      style={{
+                        alignSelf: "flex-end",
+                        maxWidth: "80%",
+                        padding: "8px 12px",
+                        borderRadius: 10,
+                        fontSize: 14,
+                        lineHeight: 1.4,
+                        background: "#1a1a1a",
+                        color: "#c0c0c0",
+                        marginTop: 10,
+                      }}
+                    >
+                      {msg.text}
+                    </div>
+                  );
+                }
+                if (msg.type === "meta") {
+                  return (
+                    <MetaRow key={i} summary={msg.summary} detail={msg.detail} />
+                  );
+                }
+                if (msg.type === "agent-streaming") {
+                  return (
+                    <div
+                      key={i}
+                      style={{
+                        maxWidth: "90%",
+                        padding: "6px 0",
+                        fontSize: 14,
+                        lineHeight: 1.5,
+                        color: "#ccc",
+                        marginTop: 4,
+                      }}
+                    >
+                      {msg.text}
+                      <span
+                        style={{
+                          display: "inline-block",
+                          width: 6,
+                          height: 16,
+                          background: "#888",
+                          borderRadius: 1,
+                          marginLeft: 2,
+                          verticalAlign: "text-bottom",
+                          animation: "blink 1s steps(2) infinite",
+                        }}
+                      />
+                    </div>
+                  );
+                }
+                // agent
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      maxWidth: "90%",
+                      padding: "6px 0",
+                      fontSize: 14,
+                      lineHeight: 1.5,
+                      color: "#ccc",
+                      marginTop: 4,
+                    }}
+                  >
+                    {msg.text}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Prompt + tongue — capped so it can't eat the whole lane */}
-            <div style={{ flexShrink: 0, maxHeight: "50vh", overflowY: "auto" }}>
+            <div style={{ flexShrink: 0, maxHeight: "50vh", overflowY: "auto", padding: "0 10px 10px" }}>
               <PromptWithTongue
                 checklist={checklist}
                 questions={elicitationMode ? datasetQuestions : undefined}

@@ -1,14 +1,12 @@
 import { useRef, useEffect, useCallback } from "react";
 
-const BOTTOM_THRESHOLD = 30; // px — how close to bottom counts as "at bottom"
+const BOTTOM_THRESHOLD = 30;
+const THROTTLE_MS = 100;
 
-/**
- * Keeps a scrollable container pinned to the bottom when its content or
- * container size changes — but only if the user hasn't scrolled up.
- */
 export function useStickToBottom<T extends HTMLElement>() {
   const ref = useRef<T>(null);
   const isAtBottom = useRef(true);
+  const lastScroll = useRef(0);
 
   const checkBottom = useCallback(() => {
     const el = ref.current;
@@ -18,34 +16,26 @@ export function useStickToBottom<T extends HTMLElement>() {
   }, []);
 
   const scrollToBottom = useCallback(() => {
+    const now = Date.now();
+    if (now - lastScroll.current < THROTTLE_MS) return;
+    lastScroll.current = now;
+
     const el = ref.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
+    if (el && isAtBottom.current) {
+      el.scrollTop = el.scrollHeight;
+    }
   }, []);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
 
-    // Track whether user is at the bottom on every scroll
     el.addEventListener("scroll", checkBottom, { passive: true });
 
-    // When the container or its content resizes, re-stick if we were at bottom
-    const observer = new ResizeObserver(() => {
-      if (isAtBottom.current) {
-        scrollToBottom();
-      }
-    });
-
-    // Observe the container itself (shrinks when tongue grows)
+    const observer = new ResizeObserver(scrollToBottom);
     observer.observe(el);
-    // Observe the scroll content (grows when messages are added)
-    for (const child of el.children) {
-      observer.observe(child);
-    }
 
-    // Start at bottom
-    scrollToBottom();
+    el.scrollTop = el.scrollHeight;
 
     return () => {
       el.removeEventListener("scroll", checkBottom);
