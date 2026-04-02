@@ -79,7 +79,6 @@ function ChecklistRow({ item, completionStagger, entryDelay }: { item: Checklist
 
   return (
     <motion.li
-      layout="position"
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -6 }}
@@ -674,9 +673,7 @@ export function PromptWithTongue({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", justifyContent: "flex-end", width: "100%" }}>
-      <motion.div
-        layout
-        transition={{ type: "spring", stiffness: 700, damping: 35, mass: 0.6 }}
+      <div
         style={{
           position: "relative",
           zIndex: 0,
@@ -721,7 +718,7 @@ export function PromptWithTongue({
             </ul>
           </div>
         )}
-      </motion.div>
+      </div>
 
       <div
         style={{

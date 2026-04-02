@@ -1,8 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { PromptWithTongue } from "./PromptWithTongue";
 import { DebugPanel } from "./DebugPanel";
 import { MetaRow } from "./MetaRow";
+import { EntityChip } from "./EntityChip";
+import { DataPreview } from "./DataPreview";
 import { useStickToBottom } from "./useStickToBottom";
+import { PerfMonitor } from "./PerfMonitor";
 import type { ChecklistState, ItemStatus, ElicitationQuestion } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -11,6 +14,7 @@ import type { ChecklistState, ItemStatus, ElicitationQuestion } from "./types";
 type Msg =
   | { type: "user"; text: string }
   | { type: "agent"; text: string }
+  | { type: "agent-rich"; content: ReactNode }
   | { type: "meta"; summary: string; detail?: string }
   | { type: "agent-streaming"; text: string };
 
@@ -74,6 +78,71 @@ const datasetQuestions: ElicitationQuestion[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Sample dataset rows for data preview
+// ---------------------------------------------------------------------------
+const dataColumns = [
+  { key: "id", label: "ID", width: 50 },
+  { key: "question", label: "Question" },
+  { key: "type", label: "Type", width: 80 },
+  { key: "difficulty", label: "Diff", width: 50 },
+];
+
+const sampleTrainRows = [
+  { id: "001", question: "What causes ocean tides?", type: "factual", difficulty: "easy" },
+  { id: "002", question: "Explain how neural networks learn", type: "open", difficulty: "hard" },
+  { id: "003", question: "What is the capital of France?", type: "factual", difficulty: "easy" },
+  { id: "004", question: "Describe the water cycle in detail", type: "open", difficulty: "med" },
+  { id: "005", question: "How does photosynthesis work?", type: "factual", difficulty: "med" },
+  { id: "006", question: "Compare TCP and UDP protocols", type: "open", difficulty: "hard" },
+  { id: "007", question: "What is the speed of light?", type: "factual", difficulty: "easy" },
+];
+
+const sampleValRows = [
+  { id: "351", question: "Why do leaves change color?", type: "factual", difficulty: "easy" },
+  { id: "352", question: "Explain quantum entanglement", type: "open", difficulty: "hard" },
+  { id: "353", question: "What is a black hole?", type: "factual", difficulty: "med" },
+  { id: "354", question: "Describe the process of mitosis", type: "open", difficulty: "med" },
+];
+
+const sampleTestRows = [
+  { id: "426", question: "How do vaccines work?", type: "factual", difficulty: "med" },
+  { id: "427", question: "Explain the greenhouse effect", type: "open", difficulty: "med" },
+  { id: "428", question: "What causes earthquakes?", type: "factual", difficulty: "easy" },
+  { id: "429", question: "Describe how encryption works", type: "open", difficulty: "hard" },
+];
+
+// ---------------------------------------------------------------------------
+// Reusable rich content fragments
+// ---------------------------------------------------------------------------
+const datasetPreviewContent = (
+  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <div>Dataset ready — 500 examples across three splits:</div>
+    <DataPreview
+      name="output/train.jsonl"
+      meta="350 examples"
+      columns={dataColumns}
+      rows={sampleTrainRows}
+      maxRows={5}
+    />
+    <DataPreview
+      name="output/val.jsonl"
+      meta="75 examples"
+      columns={dataColumns}
+      rows={sampleValRows}
+      maxRows={4}
+    />
+    <DataPreview
+      name="output/test.jsonl"
+      meta="75 examples"
+      columns={dataColumns}
+      rows={sampleTestRows}
+      maxRows={4}
+    />
+    <div style={{ marginTop: 2 }}>Loading into the playground next.</div>
+  </div>
+);
+
+// ---------------------------------------------------------------------------
 // Scenario steps — each defines what the user sees at that moment
 // ---------------------------------------------------------------------------
 interface ScenarioStep {
@@ -131,7 +200,16 @@ const steps: ScenarioStep[] = [
       { type: "meta", summary: "Thought for 12 seconds", detail: "The user wants a Q&A evaluation dataset for the playground. I should first look at how the playground is configured — what format it expects, what schema, whether it supports splits. Let me read the config and loader." },
       { type: "meta", summary: "Read src/playground/config.ts" },
       { type: "meta", summary: "Read src/playground/loader.ts" },
-      { type: "agent", text: "I've looked at the playground setup. It expects JSONL files with `question`, `answer`, and `metadata` fields, and supports train/val/test splits via filename convention. I have a few questions about what you'd like in the dataset." },
+      { type: "agent-rich", content: (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div>I've looked at the playground setup. It expects JSONL files with <code style={{ color: "#aaa", fontSize: 13 }}>question</code>, <code style={{ color: "#aaa", fontSize: 13 }}>answer</code>, and <code style={{ color: "#aaa", fontSize: 13 }}>metadata</code> fields, and supports train/val/test splits via filename convention.</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <EntityChip name="config.ts" meta="src/playground" />
+            <EntityChip name="loader.ts" meta="src/playground" />
+          </div>
+          <div>I have a few questions about what you'd like in the dataset.</div>
+        </div>
+      ) },
     ],
   },
 
@@ -147,7 +225,16 @@ const steps: ScenarioStep[] = [
       { type: "meta", summary: "Thought for 12 seconds", detail: "The user wants a Q&A evaluation dataset for the playground. I should first look at how the playground is configured — what format it expects, what schema, whether it supports splits. Let me read the config and loader." },
       { type: "meta", summary: "Read src/playground/config.ts" },
       { type: "meta", summary: "Read src/playground/loader.ts" },
-      { type: "agent", text: "I've looked at the playground setup. It expects JSONL files with `question`, `answer`, and `metadata` fields, and supports train/val/test splits via filename convention. I have a few questions about what you'd like in the dataset." },
+      { type: "agent-rich", content: (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div>I've looked at the playground setup. It expects JSONL files with <code style={{ color: "#aaa", fontSize: 13 }}>question</code>, <code style={{ color: "#aaa", fontSize: 13 }}>answer</code>, and <code style={{ color: "#aaa", fontSize: 13 }}>metadata</code> fields, and supports train/val/test splits via filename convention.</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <EntityChip name="config.ts" meta="src/playground" />
+            <EntityChip name="loader.ts" meta="src/playground" />
+          </div>
+          <div>I have a few questions about what you'd like in the dataset.</div>
+        </div>
+      ) },
     ],
   },
 
@@ -163,7 +250,16 @@ const steps: ScenarioStep[] = [
       { type: "meta", summary: "Thought for 12 seconds", detail: "The user wants a Q&A evaluation dataset for the playground. I should first look at how the playground is configured — what format it expects, what schema, whether it supports splits. Let me read the config and loader." },
       { type: "meta", summary: "Read src/playground/config.ts" },
       { type: "meta", summary: "Read src/playground/loader.ts" },
-      { type: "agent", text: "I've looked at the playground setup. It expects JSONL files with `question`, `answer`, and `metadata` fields, and supports train/val/test splits via filename convention. I have a few questions about what you'd like in the dataset." },
+      { type: "agent-rich", content: (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div>I've looked at the playground setup. It expects JSONL files with <code style={{ color: "#aaa", fontSize: 13 }}>question</code>, <code style={{ color: "#aaa", fontSize: 13 }}>answer</code>, and <code style={{ color: "#aaa", fontSize: 13 }}>metadata</code> fields, and supports train/val/test splits via filename convention.</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <EntityChip name="config.ts" meta="src/playground" />
+            <EntityChip name="loader.ts" meta="src/playground" />
+          </div>
+          <div>I have a few questions about what you'd like in the dataset.</div>
+        </div>
+      ) },
       { type: "meta", summary: "User selected: 500 examples, open-ended + factual, train/val/test splits" },
       { type: "meta", summary: "Thought for 8 seconds", detail: "500 examples with 70/15/15 split → 350 train, 75 val, 75 test. I'll include metadata: unique ID, source tag, difficulty rating. Mix of open-ended and factual Q&A. Let me generate these now." },
       { type: "agent", text: "Got it — 500 examples, open-ended and factual questions, with standard three-way splits. Generating now." },
@@ -184,7 +280,16 @@ const steps: ScenarioStep[] = [
       { type: "meta", summary: "Thought for 12 seconds", detail: "The user wants a Q&A evaluation dataset for the playground. I should first look at how the playground is configured — what format it expects, what schema, whether it supports splits. Let me read the config and loader." },
       { type: "meta", summary: "Read src/playground/config.ts" },
       { type: "meta", summary: "Read src/playground/loader.ts" },
-      { type: "agent", text: "I've looked at the playground setup. It expects JSONL files with `question`, `answer`, and `metadata` fields, and supports train/val/test splits via filename convention. I have a few questions about what you'd like in the dataset." },
+      { type: "agent-rich", content: (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div>I've looked at the playground setup. It expects JSONL files with <code style={{ color: "#aaa", fontSize: 13 }}>question</code>, <code style={{ color: "#aaa", fontSize: 13 }}>answer</code>, and <code style={{ color: "#aaa", fontSize: 13 }}>metadata</code> fields, and supports train/val/test splits via filename convention.</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <EntityChip name="config.ts" meta="src/playground" />
+            <EntityChip name="loader.ts" meta="src/playground" />
+          </div>
+          <div>I have a few questions about what you'd like in the dataset.</div>
+        </div>
+      ) },
       { type: "meta", summary: "User selected: 500 examples, open-ended + factual, train/val/test splits" },
       { type: "meta", summary: "Thought for 8 seconds", detail: "500 examples with 70/15/15 split → 350 train, 75 val, 75 test. I'll include metadata: unique ID, source tag, difficulty rating. Mix of open-ended and factual Q&A. Let me generate these now." },
       { type: "agent", text: "Got it — 500 examples, open-ended and factual questions, with standard three-way splits. Generating now." },
@@ -192,24 +297,7 @@ const steps: ScenarioStep[] = [
       { type: "meta", summary: "Wrote output/train.jsonl (350 examples)" },
       { type: "meta", summary: "Wrote output/val.jsonl (75 examples)" },
       { type: "meta", summary: "Wrote output/test.jsonl (75 examples)" },
-      {
-        type: "agent",
-        text: [
-          "Dataset ready. Here's the breakdown:",
-          "",
-          "  ┌────────────────────────────────────┐",
-          "  │  output/train.jsonl   350 examples  │",
-          "  │  output/val.jsonl      75 examples  │",
-          "  │  output/test.jsonl     75 examples  │",
-          "  ├────────────────────────────────────┤",
-          "  │  Total                500 examples  │",
-          "  │  Types    open-ended, factual Q&A   │",
-          "  │  Fields   question, answer, meta    │",
-          "  └────────────────────────────────────┘",
-          "",
-          "Loading into the playground next.",
-        ].join("\n"),
-      },
+      { type: "agent-rich", content: datasetPreviewContent },
     ],
   },
 
@@ -225,13 +313,21 @@ const steps: ScenarioStep[] = [
       { type: "meta", summary: "Thought for 12 seconds", detail: "The user wants a Q&A evaluation dataset for the playground. I should first look at how the playground is configured — what format it expects, what schema, whether it supports splits. Let me read the config and loader." },
       { type: "meta", summary: "Read src/playground/config.ts" },
       { type: "meta", summary: "Read src/playground/loader.ts" },
-      { type: "agent", text: "I've looked at the playground setup. It expects JSONL files with `question`, `answer`, and `metadata` fields, and supports train/val/test splits via filename convention. I have a few questions about what you'd like in the dataset." },
+      { type: "agent-rich", content: (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div>I've looked at the playground setup. It expects JSONL files with <code style={{ color: "#aaa", fontSize: 13 }}>question</code>, <code style={{ color: "#aaa", fontSize: 13 }}>answer</code>, and <code style={{ color: "#aaa", fontSize: 13 }}>metadata</code> fields, and supports train/val/test splits via filename convention.</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <EntityChip name="config.ts" meta="src/playground" />
+            <EntityChip name="loader.ts" meta="src/playground" />
+          </div>
+          <div>I have a few questions about what you'd like in the dataset.</div>
+        </div>
+      ) },
       { type: "meta", summary: "User selected: 500 examples, open-ended + factual, train/val/test splits" },
       { type: "meta", summary: "Thought for 8 seconds", detail: "500 examples with 70/15/15 split → 350 train, 75 val, 75 test. I'll include metadata: unique ID, source tag, difficulty rating. Mix of open-ended and factual Q&A. Let me generate these now." },
       { type: "agent", text: "Got it — 500 examples, open-ended and factual questions, with standard three-way splits. Generating now." },
       { type: "meta", summary: "Ran generate_dataset.py" },
-      { type: "meta", summary: "Wrote output/train.jsonl — output/val.jsonl — output/test.jsonl" },
-      { type: "agent", text: "Dataset ready — 500 examples across three splits. Loading into the playground now." },
+      { type: "agent-rich", content: datasetPreviewContent },
       { type: "meta", summary: "Edited src/playground/config.ts" },
       { type: "meta", summary: "Ran npm run playground:load" },
       { type: "agent-streaming", text: "The dataset is loaded. I'm starting the playground server so you can" },
@@ -250,12 +346,20 @@ const steps: ScenarioStep[] = [
       { type: "meta", summary: "Thought for 12 seconds", detail: "The user wants a Q&A evaluation dataset for the playground. I should first look at how the playground is configured — what format it expects, what schema, whether it supports splits. Let me read the config and loader." },
       { type: "meta", summary: "Read src/playground/config.ts" },
       { type: "meta", summary: "Read src/playground/loader.ts" },
-      { type: "agent", text: "I've looked at the playground setup. It expects JSONL files with `question`, `answer`, and `metadata` fields, and supports train/val/test splits via filename convention. I have a few questions about what you'd like in the dataset." },
+      { type: "agent-rich", content: (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div>I've looked at the playground setup. It expects JSONL files with <code style={{ color: "#aaa", fontSize: 13 }}>question</code>, <code style={{ color: "#aaa", fontSize: 13 }}>answer</code>, and <code style={{ color: "#aaa", fontSize: 13 }}>metadata</code> fields, and supports train/val/test splits via filename convention.</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <EntityChip name="config.ts" meta="src/playground" />
+            <EntityChip name="loader.ts" meta="src/playground" />
+          </div>
+          <div>I have a few questions about what you'd like in the dataset.</div>
+        </div>
+      ) },
       { type: "meta", summary: "User selected: 500 examples, open-ended + factual, train/val/test splits" },
       { type: "agent", text: "Got it — 500 examples, open-ended and factual questions, with standard three-way splits. Generating now." },
       { type: "meta", summary: "Ran generate_dataset.py" },
-      { type: "meta", summary: "Wrote output/train.jsonl — output/val.jsonl — output/test.jsonl" },
-      { type: "agent", text: "Dataset ready — 500 examples across three splits. Loading into the playground." },
+      { type: "agent-rich", content: datasetPreviewContent },
       { type: "meta", summary: "Edited src/playground/config.ts" },
       { type: "meta", summary: "Ran npm run playground:load" },
       { type: "agent", text: "Dataset loaded. Starting the playground server now." },
@@ -276,12 +380,20 @@ const steps: ScenarioStep[] = [
       { type: "meta", summary: "Thought for 12 seconds", detail: "The user wants a Q&A evaluation dataset for the playground. I should first look at how the playground is configured — what format it expects, what schema, whether it supports splits. Let me read the config and loader." },
       { type: "meta", summary: "Read src/playground/config.ts" },
       { type: "meta", summary: "Read src/playground/loader.ts" },
-      { type: "agent", text: "I've looked at the playground setup. It expects JSONL files with `question`, `answer`, and `metadata` fields, and supports train/val/test splits via filename convention. I have a few questions about what you'd like in the dataset." },
+      { type: "agent-rich", content: (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div>I've looked at the playground setup. It expects JSONL files with <code style={{ color: "#aaa", fontSize: 13 }}>question</code>, <code style={{ color: "#aaa", fontSize: 13 }}>answer</code>, and <code style={{ color: "#aaa", fontSize: 13 }}>metadata</code> fields, and supports train/val/test splits via filename convention.</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <EntityChip name="config.ts" meta="src/playground" />
+            <EntityChip name="loader.ts" meta="src/playground" />
+          </div>
+          <div>I have a few questions about what you'd like in the dataset.</div>
+        </div>
+      ) },
       { type: "meta", summary: "User selected: 500 examples, open-ended + factual, train/val/test splits" },
       { type: "agent", text: "Got it — 500 examples, open-ended and factual questions, with standard three-way splits. Generating now." },
       { type: "meta", summary: "Ran generate_dataset.py" },
-      { type: "meta", summary: "Wrote output/train.jsonl — output/val.jsonl — output/test.jsonl" },
-      { type: "agent", text: "Dataset ready — 500 examples across three splits. Loading into the playground." },
+      { type: "agent-rich", content: datasetPreviewContent },
       { type: "meta", summary: "Edited src/playground/config.ts" },
       { type: "meta", summary: "Ran npm run playground:load" },
       { type: "agent", text: "Dataset loaded. Starting the playground server now." },
@@ -415,6 +527,23 @@ export default function App() {
                     </div>
                   );
                 }
+                if (msg.type === "agent-rich") {
+                  return (
+                    <div
+                      key={i}
+                      style={{
+                        maxWidth: "90%",
+                        padding: "6px 0",
+                        fontSize: 14,
+                        lineHeight: 1.5,
+                        color: "#ccc",
+                        marginTop: 4,
+                      }}
+                    >
+                      {msg.content}
+                    </div>
+                  );
+                }
                 // agent
                 return (
                   <div
@@ -450,7 +579,9 @@ export default function App() {
         steps={steps.map((s) => ({ label: s.label, description: s.description }))}
         activeIndex={stepIndex}
         onSelect={setStepIndex}
-      />
+      >
+        <PerfMonitor />
+      </DebugPanel>
     </div>
   );
 }
