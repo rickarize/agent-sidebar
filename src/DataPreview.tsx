@@ -127,7 +127,7 @@ export function DataPreview({
         <span
           style={{
             fontSize: 13,
-            fontFamily: "'SF Mono', 'Fira Code', ui-monospace, monospace",
+            fontFamily: "var(--font-mono)",
           }}
         >
           {name}
@@ -173,7 +173,7 @@ export function DataPreview({
                   width: "100%",
                   borderCollapse: "collapse",
                   fontSize: 12,
-                  fontFamily: "'SF Mono', 'Fira Code', ui-monospace, monospace",
+                  fontFamily: "var(--font-mono)",
                 }}
               >
                 <thead>

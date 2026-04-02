@@ -128,7 +128,7 @@ export function PerfMonitor() {
           gap: 6,
           padding: "2px 0",
           fontSize: 11,
-          fontFamily: "'SF Mono', 'Fira Code', ui-monospace, monospace",
+          fontFamily: "var(--font-mono)",
         }}
       >
         <span style={{ color: "#e0e0e0", minWidth: 42, textAlign: "right" }}>{value}</span>

@@ -1,4 +1,5 @@
 import { motion } from "motion/react";
+import { useFonts, type FontPreset } from "./FontContext";
 
 interface Step {
   label: string;
@@ -10,6 +11,63 @@ interface Props {
   activeIndex: number;
   onSelect: (index: number) => void;
   children?: React.ReactNode;
+}
+
+const fontOptions: { value: FontPreset; label: string }[] = [
+  { value: "system", label: "System" },
+  { value: "geist", label: "Geist (metrics)" },
+  { value: "geist-native", label: "Geist (lh)" },
+];
+
+function FontToggle() {
+  const { preset, setPreset } = useFonts();
+
+  return (
+    <div
+      style={{
+        marginTop: 12,
+        padding: 10,
+        border: "1px solid #222",
+        borderRadius: 8,
+        background: "#0d0d0d",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 10,
+          fontWeight: 600,
+          color: "#555",
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+          marginBottom: 8,
+        }}
+      >
+        Font
+      </div>
+      <div style={{ display: "flex", gap: 4 }}>
+        {fontOptions.map((opt) => (
+          <button
+            key={opt.value}
+            onClick={() => setPreset(opt.value)}
+            style={{
+              flex: 1,
+              padding: "5px 8px",
+              fontSize: 11,
+              fontFamily: "inherit",
+              background: preset === opt.value ? "#2a2a2a" : "transparent",
+              border: `1px solid ${preset === opt.value ? "#444" : "#222"}`,
+              borderRadius: 6,
+              color: preset === opt.value ? "#e0e0e0" : "#666",
+              cursor: "pointer",
+              transition: "all 0.12s",
+            }}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export function DebugPanel({ steps, activeIndex, onSelect, children }: Props) {
@@ -150,6 +208,9 @@ export function DebugPanel({ steps, activeIndex, onSelect, children }: Props) {
           );
         })}
       </div>
+
+      {/* Font toggle */}
+      <FontToggle />
 
       <div
         style={{

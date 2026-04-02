@@ -46,7 +46,7 @@ export function EntityChip({
         background: hovered ? "#1a1a1a" : "#131313",
         color: hovered ? "#ccc" : "#999",
         fontSize: 13,
-        fontFamily: "'SF Mono', 'Fira Code', ui-monospace, monospace",
+        fontFamily: "var(--font-mono)",
         cursor: onClick ? "pointer" : "default",
         transition: "border-color 0.12s, background 0.12s, color 0.12s",
         lineHeight: 1,
