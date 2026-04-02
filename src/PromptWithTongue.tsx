@@ -224,7 +224,7 @@ function OptionButton({
   return (
     <motion.div
       onClick={onToggle}
-      whileTap={{ scale: 0.98 }}
+      whileTap={{ scale: 0.98, transition: { type: "tween", duration: 0.06 } }}
       style={{
         display: "flex",
         alignItems: "center",
@@ -558,7 +558,8 @@ function ElicitationCarousel({
         }}
         style={{ display: "flex", justifyContent: "space-between", padding: "4px 16px 12px" }}
       >
-        <button
+        <motion.button
+          whileTap={currentIndex > 0 ? { scale: 0.97, transition: { type: "tween", duration: 0.06 } } : undefined}
           onClick={() => goTo(currentIndex - 1)}
           disabled={currentIndex === 0}
           style={{
@@ -574,9 +575,10 @@ function ElicitationCarousel({
           }}
         >
           Back
-        </button>
+        </motion.button>
         {currentIndex === total - 1 ? (
-          <button
+          <motion.button
+            whileTap={{ scale: 0.97, transition: { type: "tween", duration: 0.06 } }}
             onClick={onSubmit}
             style={{
               padding: "6px 14px",
@@ -592,12 +594,13 @@ function ElicitationCarousel({
             }}
           >
             Submit
-          </button>
+          </motion.button>
         ) : (() => {
           const currentAnswers = answers[question.id];
           const hasAnswer = Array.isArray(currentAnswers) ? currentAnswers.length > 0 : !!currentAnswers;
           return (
-            <button
+            <motion.button
+              whileTap={{ scale: 0.97, transition: { type: "tween", duration: 0.06 } }}
               onClick={() => goTo(currentIndex + 1)}
               style={{
                 padding: "6px 14px",
@@ -613,7 +616,7 @@ function ElicitationCarousel({
               }}
             >
               {hasAnswer ? "Next" : "Skip"}
-            </button>
+            </motion.button>
           );
         })()}
       </motion.div>
@@ -624,11 +627,17 @@ function ElicitationCarousel({
 export function PromptWithTongue({
   checklist,
   questions,
+  defaultPrompt = "",
 }: {
   checklist: ChecklistState;
   questions?: ElicitationQuestion[];
+  defaultPrompt?: string;
 }) {
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(defaultPrompt);
+
+  useEffect(() => {
+    setPrompt(defaultPrompt);
+  }, [defaultPrompt]);
   const [answers, setAnswers] = useState<ElicitationAnswers>({});
   const [customTexts, setCustomTexts] = useState<Record<string, string>>({});
   const [showElicitation, setShowElicitation] = useState(false);
@@ -754,7 +763,8 @@ export function PromptWithTongue({
                 boxSizing: "border-box",
               }}
             />
-            <button
+            <motion.button
+              whileTap={prompt.trim() ? { scale: 0.93, transition: { type: "tween", duration: 0.06 } } : undefined}
               style={{
                 position: "absolute",
                 right: 12,
@@ -763,8 +773,8 @@ export function PromptWithTongue({
                 height: 32,
                 borderRadius: 8,
                 border: "none",
-                background: prompt.trim() ? "#6366f1" : "#333",
-                color: prompt.trim() ? "#fff" : "#666",
+                background: prompt.trim() ? "#e0e0e0" : "#333",
+                color: prompt.trim() ? "#111" : "#666",
                 cursor: prompt.trim() ? "pointer" : "default",
                 display: "flex",
                 alignItems: "center",
@@ -781,7 +791,7 @@ export function PromptWithTongue({
                   strokeLinejoin="round"
                 />
               </svg>
-            </button>
+            </motion.button>
           </div>
         )}
       </div>

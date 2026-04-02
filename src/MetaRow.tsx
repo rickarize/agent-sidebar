@@ -7,7 +7,7 @@ export function MetaRow({ summary, detail }: { summary: string; detail?: string 
   const expandable = !!detail;
 
   return (
-    <div style={{ padding: "3px 0" }}>
+    <div>
       <div
         style={{
           fontSize: 14,
@@ -16,10 +16,10 @@ export function MetaRow({ summary, detail }: { summary: string; detail?: string 
           alignItems: "center",
           gap: 6,
           userSelect: "none",
+          padding: "4px 0",
         }}
       >
-        <span>{summary}</span>
-        {expandable && (
+        {expandable ? (
           <span
             onClick={() => setOpen((o) => !o)}
             onMouseEnter={() => setHovered(true)}
@@ -27,11 +27,13 @@ export function MetaRow({ summary, detail }: { summary: string; detail?: string 
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: 4,
+              gap: 6,
               cursor: "pointer",
-              padding: "0 50px 0 4px",
+              padding: "4px 48px 4px 0",
+              margin: "-4px 0",
             }}
           >
+            {summary}
             <motion.svg
               width="14"
               height="14"
@@ -53,6 +55,8 @@ export function MetaRow({ summary, detail }: { summary: string; detail?: string 
               <span style={{ fontSize: 14, color: "#555" }}>expand</span>
             )}
           </span>
+        ) : (
+          <span>{summary}</span>
         )}
       </div>
       <AnimatePresence>

@@ -5,7 +5,19 @@ import { MetaRow } from "./MetaRow";
 import { useStickToBottom } from "./useStickToBottom";
 import type { ChecklistState, ItemStatus, ElicitationQuestion } from "./types";
 
-const items = [
+// ---------------------------------------------------------------------------
+// Message types
+// ---------------------------------------------------------------------------
+type Msg =
+  | { type: "user"; text: string }
+  | { type: "agent"; text: string }
+  | { type: "meta"; summary: string; detail?: string }
+  | { type: "agent-streaming"; text: string };
+
+// ---------------------------------------------------------------------------
+// Plan items (tongue checklist)
+// ---------------------------------------------------------------------------
+const planItems = [
   { id: "1", text: "Investigate current playground" },
   { id: "2", text: "Gather dataset requirements" },
   { id: "3", text: "Generate dataset" },
@@ -13,43 +25,13 @@ const items = [
   { id: "5", text: "Run playground" },
 ];
 
-const presets: { label: string; state: ChecklistState }[] = [
-  {
-    label: "Empty",
-    state: { items: [] },
-  },
-  {
-    label: "Start",
-    state: {
-      items: items.slice(0, 2).map((it, i) => ({ ...it, status: i === 0 ? "active" as const : "pending" as const })),
-    },
-  },
-  {
-    label: "Step 1 done",
-    state: {
-      items: items.slice(0, 2).map((it, i) => ({ ...it, status: (["done", "active"] as const)[i] })),
-    },
-  },
-  {
-    label: "Expand",
-    state: {
-      items: items.map((it, i) => ({ ...it, status: (i < 2 ? "done" : i === 2 ? "active" : "pending") as ItemStatus })),
-    },
-  },
-  {
-    label: "Step 4 done",
-    state: {
-      items: items.map((it, i) => ({ ...it, status: (i < 4 ? "done" : "active") as ItemStatus })),
-    },
-  },
-  {
-    label: "Complete",
-    state: {
-      items: items.map((it) => ({ ...it, status: "done" as const })),
-    },
-  },
-];
+function plan(statuses: ItemStatus[]): ChecklistState {
+  return { items: statuses.map((s, i) => ({ ...planItems[i], status: s })) };
+}
 
+// ---------------------------------------------------------------------------
+// Elicitation questions (shown during "Gather dataset requirements")
+// ---------------------------------------------------------------------------
 const datasetQuestions: ElicitationQuestion[] = [
   {
     id: "q-count",
@@ -91,51 +73,241 @@ const datasetQuestions: ElicitationQuestion[] = [
   },
 ];
 
-const LANE_WIDTH = 560;
+// ---------------------------------------------------------------------------
+// Scenario steps — each defines what the user sees at that moment
+// ---------------------------------------------------------------------------
+interface ScenarioStep {
+  label: string;
+  description?: string;
+  promptText: string;        // what's in the textarea
+  checklist: ChecklistState;
+  elicitation: boolean;      // whether elicitation questions show
+  messages: Msg[];           // conversation so far
+}
 
-type FakeMessage =
-  | { type: "user"; text: string }
-  | { type: "agent"; text: string }
-  | { type: "meta"; summary: string; detail?: string }
-  | { type: "agent-streaming"; text: string };
+const steps: ScenarioStep[] = [
+  // 0 — Empty state, user hasn't typed yet
+  {
+    label: "Empty",
+    description: "Fresh lane, no conversation yet",
+    promptText: "",
+    checklist: { items: [] },
+    elicitation: false,
+    messages: [],
+  },
 
-const fakeMessages: FakeMessage[] = [
-  { type: "user", text: "Can you help me set up a new dataset for evaluating our Q&A model?" },
-  { type: "meta", summary: "Thought for 12 seconds", detail: "I need to understand what format the playground expects. Let me check the config and loader files to see what schema they use for datasets. The user wants Q&A evaluation, so I should look for existing dataset conventions and any validation logic that might constrain the format." },
-  { type: "agent", text: "I'll look into the current playground setup and figure out what format works best for your evaluation pipeline." },
-  { type: "meta", summary: "Read src/playground/config.ts" },
-  { type: "meta", summary: "Read src/playground/loader.ts" },
-  { type: "agent", text: "The playground expects JSONL with `question`, `answer`, and `metadata` fields. It also supports train/val/test splits via filename convention." },
-  { type: "user", text: "Great. Let's do 500 examples with standard splits." },
-  { type: "meta", summary: "Thought for 8 seconds", detail: "500 examples with a standard 70/15/15 split gives 350 train, 75 val, 75 test. I should include metadata fields that are useful for evaluation — source, difficulty, and a unique ID for dedup. The generation script needs to produce diverse question types: open-ended, factual, and multiple-choice." },
-  { type: "agent", text: "I'll generate 350 train, 75 validation, and 75 test examples. Each will have a unique ID, source tag, and difficulty rating." },
-  { type: "meta", summary: "Ran generate_dataset.py" },
-  { type: "meta", summary: "Wrote output/train.jsonl (350 examples)" },
-  { type: "meta", summary: "Wrote output/val.jsonl (75 examples)" },
-  { type: "meta", summary: "Wrote output/test.jsonl (75 examples)" },
-  { type: "agent", text: "All three files are ready. The examples cover open-ended, factual, and multiple-choice questions with a roughly even distribution." },
-  { type: "user", text: "Can you check if there are any duplicates across splits?" },
-  { type: "meta", summary: "Ran dedup_check.py" },
-  { type: "agent", text: "No duplicates found. All 500 examples have unique question text and unique IDs." },
-  { type: "user", text: "Perfect. Load them into the playground." },
-  { type: "meta", summary: "Thought for 3 seconds", detail: "I need to update the playground config to point at the new dataset files. The config uses a datasets array where each entry has a path and split name." },
-  { type: "meta", summary: "Edited src/playground/config.ts" },
-  { type: "agent-streaming", text: "Loading the dataset now. I've updated the config to point at the new files and" },
+  // 1 — User is composing their prompt
+  {
+    label: "User typing prompt",
+    description: "User is drafting a request in the textarea",
+    promptText: "Help me build a Q&A evaluation dataset for the playground",
+    checklist: { items: [] },
+    elicitation: false,
+    messages: [],
+  },
+
+  // 2 — Prompt submitted, agent is thinking
+  {
+    label: "Submitted — agent thinking",
+    description: "Prompt sent, plan appears with first item active",
+    promptText: "",
+    checklist: plan(["active", "pending"]),
+    elicitation: false,
+    messages: [
+      { type: "user", text: "Help me build a Q&A evaluation dataset for the playground" },
+      { type: "meta", summary: "Thinking...", detail: "The user wants a Q&A evaluation dataset for the playground. I should first look at how the playground is configured — what format it expects, what schema, whether it supports splits. Let me read the config and loader." },
+    ],
+  },
+
+  // 3 — Agent investigated playground, reports findings
+  {
+    label: "Investigated playground",
+    description: "Agent read files and reports what it found",
+    promptText: "",
+    checklist: plan(["done", "active"]),
+    elicitation: false,
+    messages: [
+      { type: "user", text: "Help me build a Q&A evaluation dataset for the playground" },
+      { type: "meta", summary: "Thought for 12 seconds", detail: "The user wants a Q&A evaluation dataset for the playground. I should first look at how the playground is configured — what format it expects, what schema, whether it supports splits. Let me read the config and loader." },
+      { type: "meta", summary: "Read src/playground/config.ts" },
+      { type: "meta", summary: "Read src/playground/loader.ts" },
+      { type: "agent", text: "I've looked at the playground setup. It expects JSONL files with `question`, `answer`, and `metadata` fields, and supports train/val/test splits via filename convention. I have a few questions about what you'd like in the dataset." },
+    ],
+  },
+
+  // 4 — Elicitation: agent asks dataset questions
+  {
+    label: "Elicitation — dataset requirements",
+    description: "Agent needs input — elicitation carousel replaces textarea",
+    promptText: "",
+    checklist: plan(["done", "active"]),
+    elicitation: true,
+    messages: [
+      { type: "user", text: "Help me build a Q&A evaluation dataset for the playground" },
+      { type: "meta", summary: "Thought for 12 seconds", detail: "The user wants a Q&A evaluation dataset for the playground. I should first look at how the playground is configured — what format it expects, what schema, whether it supports splits. Let me read the config and loader." },
+      { type: "meta", summary: "Read src/playground/config.ts" },
+      { type: "meta", summary: "Read src/playground/loader.ts" },
+      { type: "agent", text: "I've looked at the playground setup. It expects JSONL files with `question`, `answer`, and `metadata` fields, and supports train/val/test splits via filename convention. I have a few questions about what you'd like in the dataset." },
+    ],
+  },
+
+  // 5 — Requirements gathered, plan expands, generation begins
+  {
+    label: "Generating dataset",
+    description: "User answered questions, agent is generating",
+    promptText: "",
+    checklist: plan(["done", "done", "active", "pending", "pending"]),
+    elicitation: false,
+    messages: [
+      { type: "user", text: "Help me build a Q&A evaluation dataset for the playground" },
+      { type: "meta", summary: "Thought for 12 seconds", detail: "The user wants a Q&A evaluation dataset for the playground. I should first look at how the playground is configured — what format it expects, what schema, whether it supports splits. Let me read the config and loader." },
+      { type: "meta", summary: "Read src/playground/config.ts" },
+      { type: "meta", summary: "Read src/playground/loader.ts" },
+      { type: "agent", text: "I've looked at the playground setup. It expects JSONL files with `question`, `answer`, and `metadata` fields, and supports train/val/test splits via filename convention. I have a few questions about what you'd like in the dataset." },
+      { type: "meta", summary: "User selected: 500 examples, open-ended + factual, train/val/test splits" },
+      { type: "meta", summary: "Thought for 8 seconds", detail: "500 examples with 70/15/15 split → 350 train, 75 val, 75 test. I'll include metadata: unique ID, source tag, difficulty rating. Mix of open-ended and factual Q&A. Let me generate these now." },
+      { type: "agent", text: "Got it — 500 examples, open-ended and factual questions, with standard three-way splits. Generating now." },
+      { type: "meta", summary: "Ran generate_dataset.py" },
+      { type: "agent-streaming", text: "Writing the dataset files" },
+    ],
+  },
+
+  // 6 — Dataset generated, summary shown
+  {
+    label: "Dataset generated",
+    description: "Files written, agent shows summary",
+    promptText: "",
+    checklist: plan(["done", "done", "done", "active", "pending"]),
+    elicitation: false,
+    messages: [
+      { type: "user", text: "Help me build a Q&A evaluation dataset for the playground" },
+      { type: "meta", summary: "Thought for 12 seconds", detail: "The user wants a Q&A evaluation dataset for the playground. I should first look at how the playground is configured — what format it expects, what schema, whether it supports splits. Let me read the config and loader." },
+      { type: "meta", summary: "Read src/playground/config.ts" },
+      { type: "meta", summary: "Read src/playground/loader.ts" },
+      { type: "agent", text: "I've looked at the playground setup. It expects JSONL files with `question`, `answer`, and `metadata` fields, and supports train/val/test splits via filename convention. I have a few questions about what you'd like in the dataset." },
+      { type: "meta", summary: "User selected: 500 examples, open-ended + factual, train/val/test splits" },
+      { type: "meta", summary: "Thought for 8 seconds", detail: "500 examples with 70/15/15 split → 350 train, 75 val, 75 test. I'll include metadata: unique ID, source tag, difficulty rating. Mix of open-ended and factual Q&A. Let me generate these now." },
+      { type: "agent", text: "Got it — 500 examples, open-ended and factual questions, with standard three-way splits. Generating now." },
+      { type: "meta", summary: "Ran generate_dataset.py" },
+      { type: "meta", summary: "Wrote output/train.jsonl (350 examples)" },
+      { type: "meta", summary: "Wrote output/val.jsonl (75 examples)" },
+      { type: "meta", summary: "Wrote output/test.jsonl (75 examples)" },
+      {
+        type: "agent",
+        text: [
+          "Dataset ready. Here's the breakdown:",
+          "",
+          "  ┌────────────────────────────────────┐",
+          "  │  output/train.jsonl   350 examples  │",
+          "  │  output/val.jsonl      75 examples  │",
+          "  │  output/test.jsonl     75 examples  │",
+          "  ├────────────────────────────────────┤",
+          "  │  Total                500 examples  │",
+          "  │  Types    open-ended, factual Q&A   │",
+          "  │  Fields   question, answer, meta    │",
+          "  └────────────────────────────────────┘",
+          "",
+          "Loading into the playground next.",
+        ].join("\n"),
+      },
+    ],
+  },
+
+  // 7 — Loading dataset into playground
+  {
+    label: "Loading into playground",
+    description: "Agent editing config to load the dataset",
+    promptText: "",
+    checklist: plan(["done", "done", "done", "active", "pending"]),
+    elicitation: false,
+    messages: [
+      { type: "user", text: "Help me build a Q&A evaluation dataset for the playground" },
+      { type: "meta", summary: "Thought for 12 seconds", detail: "The user wants a Q&A evaluation dataset for the playground. I should first look at how the playground is configured — what format it expects, what schema, whether it supports splits. Let me read the config and loader." },
+      { type: "meta", summary: "Read src/playground/config.ts" },
+      { type: "meta", summary: "Read src/playground/loader.ts" },
+      { type: "agent", text: "I've looked at the playground setup. It expects JSONL files with `question`, `answer`, and `metadata` fields, and supports train/val/test splits via filename convention. I have a few questions about what you'd like in the dataset." },
+      { type: "meta", summary: "User selected: 500 examples, open-ended + factual, train/val/test splits" },
+      { type: "meta", summary: "Thought for 8 seconds", detail: "500 examples with 70/15/15 split → 350 train, 75 val, 75 test. I'll include metadata: unique ID, source tag, difficulty rating. Mix of open-ended and factual Q&A. Let me generate these now." },
+      { type: "agent", text: "Got it — 500 examples, open-ended and factual questions, with standard three-way splits. Generating now." },
+      { type: "meta", summary: "Ran generate_dataset.py" },
+      { type: "meta", summary: "Wrote output/train.jsonl — output/val.jsonl — output/test.jsonl" },
+      { type: "agent", text: "Dataset ready — 500 examples across three splits. Loading into the playground now." },
+      { type: "meta", summary: "Edited src/playground/config.ts" },
+      { type: "meta", summary: "Ran npm run playground:load" },
+      { type: "agent-streaming", text: "The dataset is loaded. I'm starting the playground server so you can" },
+    ],
+  },
+
+  // 8 — Running playground
+  {
+    label: "Running playground",
+    description: "Playground starting up with the new dataset",
+    promptText: "",
+    checklist: plan(["done", "done", "done", "done", "active"]),
+    elicitation: false,
+    messages: [
+      { type: "user", text: "Help me build a Q&A evaluation dataset for the playground" },
+      { type: "meta", summary: "Thought for 12 seconds", detail: "The user wants a Q&A evaluation dataset for the playground. I should first look at how the playground is configured — what format it expects, what schema, whether it supports splits. Let me read the config and loader." },
+      { type: "meta", summary: "Read src/playground/config.ts" },
+      { type: "meta", summary: "Read src/playground/loader.ts" },
+      { type: "agent", text: "I've looked at the playground setup. It expects JSONL files with `question`, `answer`, and `metadata` fields, and supports train/val/test splits via filename convention. I have a few questions about what you'd like in the dataset." },
+      { type: "meta", summary: "User selected: 500 examples, open-ended + factual, train/val/test splits" },
+      { type: "agent", text: "Got it — 500 examples, open-ended and factual questions, with standard three-way splits. Generating now." },
+      { type: "meta", summary: "Ran generate_dataset.py" },
+      { type: "meta", summary: "Wrote output/train.jsonl — output/val.jsonl — output/test.jsonl" },
+      { type: "agent", text: "Dataset ready — 500 examples across three splits. Loading into the playground." },
+      { type: "meta", summary: "Edited src/playground/config.ts" },
+      { type: "meta", summary: "Ran npm run playground:load" },
+      { type: "agent", text: "Dataset loaded. Starting the playground server now." },
+      { type: "meta", summary: "Ran npm run playground:start" },
+      { type: "agent-streaming", text: "Playground is starting on http://localhost:3000 — it should open in your browser" },
+    ],
+  },
+
+  // 9 — All done
+  {
+    label: "Complete",
+    description: "All steps done, playground running",
+    promptText: "",
+    checklist: plan(["done", "done", "done", "done", "done"]),
+    elicitation: false,
+    messages: [
+      { type: "user", text: "Help me build a Q&A evaluation dataset for the playground" },
+      { type: "meta", summary: "Thought for 12 seconds", detail: "The user wants a Q&A evaluation dataset for the playground. I should first look at how the playground is configured — what format it expects, what schema, whether it supports splits. Let me read the config and loader." },
+      { type: "meta", summary: "Read src/playground/config.ts" },
+      { type: "meta", summary: "Read src/playground/loader.ts" },
+      { type: "agent", text: "I've looked at the playground setup. It expects JSONL files with `question`, `answer`, and `metadata` fields, and supports train/val/test splits via filename convention. I have a few questions about what you'd like in the dataset." },
+      { type: "meta", summary: "User selected: 500 examples, open-ended + factual, train/val/test splits" },
+      { type: "agent", text: "Got it — 500 examples, open-ended and factual questions, with standard three-way splits. Generating now." },
+      { type: "meta", summary: "Ran generate_dataset.py" },
+      { type: "meta", summary: "Wrote output/train.jsonl — output/val.jsonl — output/test.jsonl" },
+      { type: "agent", text: "Dataset ready — 500 examples across three splits. Loading into the playground." },
+      { type: "meta", summary: "Edited src/playground/config.ts" },
+      { type: "meta", summary: "Ran npm run playground:load" },
+      { type: "agent", text: "Dataset loaded. Starting the playground server now." },
+      { type: "meta", summary: "Ran npm run playground:start" },
+      { type: "agent", text: "All done. The playground is running at http://localhost:3000 with your 500-example dataset loaded. You can evaluate the Q&A model from there." },
+    ],
+  },
 ];
 
+// ---------------------------------------------------------------------------
+// Layout
+// ---------------------------------------------------------------------------
+const LANE_WIDTH = 560;
+
 export default function App() {
-  const [presetIndex, setPresetIndex] = useState(1);
-  const checklist = presets[presetIndex].state;
-  const elicitationMode = presetIndex === 2;
+  const [stepIndex, setStepIndex] = useState(0);
+  const step = steps[stepIndex];
   const messagesRef = useStickToBottom<HTMLDivElement>();
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLTextAreaElement) return;
+      if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
       if (e.key === "ArrowLeft") {
-        setPresetIndex((i) => (i - 1 + presets.length) % presets.length);
+        setStepIndex((i) => (i - 1 + steps.length) % steps.length);
       } else if (e.key === "ArrowRight") {
-        setPresetIndex((i) => (i + 1) % presets.length);
+        setStepIndex((i) => (i + 1) % steps.length);
       }
     };
     window.addEventListener("keydown", handler);
@@ -188,7 +360,7 @@ export default function App() {
                 gap: 2,
               }}
             >
-              {fakeMessages.map((msg, i) => {
+              {step.messages.map((msg, i) => {
                 if (msg.type === "user") {
                   return (
                     <div
@@ -254,6 +426,7 @@ export default function App() {
                       lineHeight: 1.5,
                       color: "#ccc",
                       marginTop: 4,
+                      whiteSpace: "pre-wrap",
                     }}
                   >
                     {msg.text}
@@ -265,17 +438,18 @@ export default function App() {
             {/* Prompt + tongue — capped so it can't eat the whole lane */}
             <div style={{ flexShrink: 0, maxHeight: "50vh", overflowY: "auto", padding: "0 10px 10px" }}>
               <PromptWithTongue
-                checklist={checklist}
-                questions={elicitationMode ? datasetQuestions : undefined}
+                checklist={step.checklist}
+                questions={step.elicitation ? datasetQuestions : undefined}
+                defaultPrompt={step.promptText}
               />
             </div>
           </div>
         </div>
       </div>
       <DebugPanel
-        presets={presets}
-        activeIndex={presetIndex}
-        onSelect={setPresetIndex}
+        steps={steps.map((s) => ({ label: s.label, description: s.description }))}
+        activeIndex={stepIndex}
+        onSelect={setStepIndex}
       />
     </div>
   );

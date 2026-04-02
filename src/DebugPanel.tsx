@@ -1,14 +1,18 @@
 import { motion } from "motion/react";
-import type { ChecklistState } from "./types";
+
+interface Step {
+  label: string;
+  description?: string;
+}
 
 interface Props {
-  presets: { label: string; state: ChecklistState }[];
+  steps: Step[];
   activeIndex: number;
   onSelect: (index: number) => void;
   children?: React.ReactNode;
 }
 
-export function DebugPanel({ presets, activeIndex, onSelect, children }: Props) {
+export function DebugPanel({ steps, activeIndex, onSelect, children }: Props) {
   return (
     <div
       style={{
@@ -31,35 +35,7 @@ export function DebugPanel({ presets, activeIndex, onSelect, children }: Props) 
           marginBottom: 12,
         }}
       >
-        Debug &middot; State Carousel
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          gap: 6,
-          marginBottom: 16,
-          flexWrap: "wrap",
-        }}
-      >
-        {presets.map((p, i) => (
-          <button
-            key={i}
-            onClick={() => onSelect(i)}
-            style={{
-              background: i === activeIndex ? "#333" : "#1a1a1a",
-              color: i === activeIndex ? "#fff" : "#888",
-              border: `1px solid ${i === activeIndex ? "#555" : "#2a2a2a"}`,
-              borderRadius: 6,
-              padding: "4px 10px",
-              fontSize: 12,
-              cursor: "pointer",
-              transition: "all 0.15s",
-            }}
-          >
-            {p.label}
-          </button>
-        ))}
+        Debug &middot; Scenario Steps
       </div>
 
       <div
@@ -67,11 +43,11 @@ export function DebugPanel({ presets, activeIndex, onSelect, children }: Props) 
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          marginBottom: 12,
+          marginBottom: 16,
         }}
       >
         <button
-          onClick={() => onSelect((activeIndex - 1 + presets.length) % presets.length)}
+          onClick={() => onSelect((activeIndex - 1 + steps.length) % steps.length)}
           style={{
             background: "none",
             border: "1px solid #333",
@@ -85,10 +61,10 @@ export function DebugPanel({ presets, activeIndex, onSelect, children }: Props) 
           ← Prev
         </button>
         <span style={{ color: "#666", fontSize: 12 }}>
-          {activeIndex + 1} / {presets.length}
+          {activeIndex + 1} / {steps.length}
         </span>
         <button
-          onClick={() => onSelect((activeIndex + 1) % presets.length)}
+          onClick={() => onSelect((activeIndex + 1) % steps.length)}
           style={{
             background: "none",
             border: "1px solid #333",
@@ -103,27 +79,77 @@ export function DebugPanel({ presets, activeIndex, onSelect, children }: Props) 
         </button>
       </div>
 
-      <motion.pre
-        key={activeIndex}
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+      <div
         style={{
-          background: "#0d0d0d",
-          border: "1px solid #222",
-          borderRadius: 8,
-          padding: 14,
-          fontSize: 11,
-          color: "#8be9fd",
-          overflow: "auto",
           flex: 1,
-          margin: 0,
-          whiteSpace: "pre-wrap",
-          fontFamily: "'SF Mono', 'Fira Code', monospace",
+          overflowY: "auto",
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
         }}
       >
-        {JSON.stringify(presets[activeIndex].state, null, 2)}
-      </motion.pre>
+        {steps.map((step, i) => {
+          const isActive = i === activeIndex;
+          const isPast = i < activeIndex;
+          return (
+            <motion.button
+              key={i}
+              onClick={() => onSelect(i)}
+              whileTap={{ scale: 0.98 }}
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 10,
+                padding: "8px 10px",
+                background: isActive ? "#1e1e1e" : "transparent",
+                border: isActive ? "1px solid #333" : "1px solid transparent",
+                borderRadius: 8,
+                cursor: "pointer",
+                textAlign: "left",
+                width: "100%",
+                transition: "background 0.15s, border-color 0.15s",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: isActive ? "#fff" : isPast ? "#555" : "#444",
+                  minWidth: 20,
+                  flexShrink: 0,
+                  paddingTop: 1,
+                }}
+              >
+                {i + 1}.
+              </span>
+              <div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: isActive ? "#e0e0e0" : isPast ? "#777" : "#555",
+                    fontWeight: isActive ? 500 : 400,
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {step.label}
+                </div>
+                {step.description && isActive && (
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "#666",
+                      marginTop: 4,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {step.description}
+                  </div>
+                )}
+              </div>
+            </motion.button>
+          );
+        })}
+      </div>
 
       <div
         style={{
