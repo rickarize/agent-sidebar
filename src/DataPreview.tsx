@@ -52,19 +52,48 @@ interface Column {
 interface DataPreviewProps {
   name: string;
   meta?: string;
+  href?: string;
   columns: Column[];
   rows: Record<string, string>[];
   maxRows?: number;
+  defaultOpen?: boolean;
+  footerLinkText?: string;
+  footerLinkHref?: string;
+}
+
+function LinkIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ display: "block" }}>
+      <path
+        d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9 2h5v5M14 2L7 9"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
 export function DataPreview({
   name,
   meta,
+  href,
   columns,
   rows,
   maxRows = 5,
+  defaultOpen = false,
+  footerLinkText,
+  footerLinkHref,
 }: DataPreviewProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [hovered, setHovered] = useState(false);
   const displayRows = rows.slice(0, maxRows);
   const remaining = rows.length - displayRows.length;
@@ -106,7 +135,24 @@ export function DataPreview({
         {meta && (
           <span style={{ fontSize: 11, color: "#555" }}>{meta}</span>
         )}
-        <span style={{ marginLeft: "auto" }}>
+        <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+          {href && (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                color: hovered || open ? "#777" : "#444",
+                transition: "color 0.12s",
+                display: "flex",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "#ccc")}
+              onMouseLeave={(e) => (e.currentTarget.style.color = hovered || open ? "#777" : "#444")}
+            >
+              <LinkIcon />
+            </a>
+          )}
           <ChevronIcon open={open} />
         </span>
       </div>
@@ -182,16 +228,41 @@ export function DataPreview({
                   ))}
                 </tbody>
               </table>
-              {remaining > 0 && (
+              {(remaining > 0 || footerLinkHref) && (
                 <div
                   style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
                     padding: "6px 10px",
                     fontSize: 11,
                     color: "#555",
                     borderTop: "1px solid #1a1a1a",
                   }}
                 >
-                  + {remaining} more row{remaining !== 1 ? "s" : ""}
+                  <span>
+                    {remaining > 0 && `+ ${remaining} more row${remaining !== 1 ? "s" : ""}`}
+                  </span>
+                  {footerLinkHref && (
+                    <a
+                      href={footerLinkHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        color: "#777",
+                        textDecoration: "none",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        transition: "color 0.12s",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = "#ccc")}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = "#777")}
+                    >
+                      {footerLinkText || "Open"}
+                      <LinkIcon />
+                    </a>
+                  )}
                 </div>
               )}
             </div>

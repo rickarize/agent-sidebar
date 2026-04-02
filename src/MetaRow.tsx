@@ -1,10 +1,19 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 
-export function MetaRow({ summary, detail }: { summary: string; detail?: string }) {
+
+export function MetaRow({
+  summary,
+  detail,
+  pending,
+}: {
+  summary: string;
+  detail?: string;
+  pending?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
-  const expandable = !!detail;
+  const expandable = !!detail && !pending;
 
   return (
     <div>
@@ -54,6 +63,23 @@ export function MetaRow({ summary, detail }: { summary: string; detail?: string 
             {hovered && !open && (
               <span style={{ fontSize: 14, color: "#555" }}>expand</span>
             )}
+          </span>
+        ) : pending ? (
+          <span style={{ fontStyle: "italic" }}>
+            {[...`${summary}…`].map((char, ci) => (
+              <motion.span
+                key={ci}
+                animate={{ opacity: [0.5, 0.85, 0.5] }}
+                transition={{
+                  duration: 2,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                  delay: ci * 0.06,
+                }}
+              >
+                {char}
+              </motion.span>
+            ))}
           </span>
         ) : (
           <span>{summary}</span>
