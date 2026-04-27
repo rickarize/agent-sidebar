@@ -336,6 +336,7 @@ function ElicitationCarousel({
   onAnswersChange,
   onCustomTextChange,
   onSubmit,
+  onDismiss,
 }: {
   questions: ElicitationQuestion[];
   answers: ElicitationAnswers;
@@ -343,6 +344,7 @@ function ElicitationCarousel({
   onAnswersChange: (answers: ElicitationAnswers) => void;
   onCustomTextChange: (key: string, value: string) => void;
   onSubmit: () => void;
+  onDismiss: () => void;
 }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(0);
@@ -355,6 +357,16 @@ function ElicitationCarousel({
     const timer = setTimeout(() => { isInitialMount.current = false; }, (ELICITATION_ENTRY_DELAY + 0.5) * 1000);
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onDismiss();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onDismiss]);
 
   const goTo = (idx: number) => {
     setDirection(idx > currentIndex ? 1 : -1);
@@ -555,26 +567,42 @@ function ElicitationCarousel({
           delay: navDelay,
           opacity: { duration: 0.12, delay: navDelay },
         }}
-        style={{ display: "flex", justifyContent: "space-between", padding: "4px 16px 12px" }}
+        style={{ display: "flex", alignItems: "center", padding: "4px 16px 12px" }}
       >
-        <motion.button
-          whileTap={currentIndex > 0 ? { scale: 0.97, transition: { type: "tween", duration: 0.06 } } : undefined}
-          onClick={() => goTo(currentIndex - 1)}
-          disabled={currentIndex === 0}
+        {currentIndex > 0 && (
+          <motion.button
+            whileTap={{ scale: 0.97, transition: { type: "tween", duration: 0.06 } }}
+            onClick={() => goTo(currentIndex - 1)}
+            style={{
+              padding: "6px 10px",
+              fontSize: 13,
+              fontFamily: "inherit",
+              background: "transparent",
+              border: "none",
+              color: "#999",
+              cursor: "pointer",
+              transition: "color 0.15s",
+            }}
+          >
+            Back
+          </motion.button>
+        )}
+        <button
+          onClick={onDismiss}
           style={{
-            padding: "6px 14px",
+            padding: "6px 10px",
             fontSize: 13,
             fontFamily: "inherit",
             background: "transparent",
-            border: "1px solid #333",
-            borderRadius: 6,
-            color: currentIndex === 0 ? "#444" : "#999",
-            cursor: currentIndex === 0 ? "default" : "pointer",
-            transition: "color 0.15s, border-color 0.15s",
+            border: "none",
+            color: "#999",
+            cursor: "pointer",
+            transition: "color 0.15s",
           }}
         >
-          Back
-        </motion.button>
+          Cancel
+        </button>
+        <div style={{ flex: 1 }} />
         {currentIndex === total - 1 ? (
           <motion.button
             whileTap={{ scale: 0.97, transition: { type: "tween", duration: 0.06 } }}
@@ -614,7 +642,7 @@ function ElicitationCarousel({
                 transition: "background 0.15s, color 0.15s, border-color 0.15s",
               }}
             >
-              {hasAnswer ? "Next" : "Skip"}
+              Next
             </motion.button>
           );
         })()}
@@ -738,6 +766,7 @@ export function PromptWithTongue({
             onAnswersChange={setAnswers}
             onCustomTextChange={(key, value) => setCustomTexts((prev) => ({ ...prev, [key]: value }))}
             onSubmit={() => setShowElicitation(false)}
+            onDismiss={() => setShowElicitation(false)}
           />
         ) : (
           <div style={{ position: "relative" }}>

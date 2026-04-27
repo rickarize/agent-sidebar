@@ -4,6 +4,7 @@ import { DebugPanel } from "./DebugPanel";
 import { MetaRow } from "./MetaRow";
 import { EntityChip } from "./EntityChip";
 import { DataPreview } from "./DataPreview";
+import { ElicitationResult } from "./ElicitationResult";
 import { useStickToBottom } from "./useStickToBottom";
 import { PerfMonitor } from "./PerfMonitor";
 import type { ChecklistState, ItemStatus, ElicitationQuestion } from "./types";
@@ -114,6 +115,46 @@ const sampleTestRows = [
 // ---------------------------------------------------------------------------
 // Reusable rich content fragments
 // ---------------------------------------------------------------------------
+const elicitationQuestionPrompts = [
+  "How many examples should the dataset contain?",
+  "What type of content should the examples cover?",
+  "Should the dataset include splits?",
+  "Any other requirements?",
+];
+
+const elicitationAnswers = [
+  { question: "How many examples?", type: "single" as const, selected: ["500 — solid baseline"] },
+  { question: "Content types", type: "multi" as const, selected: ["Open-ended questions", "Factual Q&A"] },
+  { question: "Dataset splits", type: "single" as const, selected: ["Train / validate / test"] },
+  { question: "Other requirements", type: "freeform" as const, selected: ["Include difficulty ratings and source tags for each example"] },
+];
+
+const elicitationInProgressContent = (
+  <ElicitationResult
+    summary="Dataset requirements"
+    questions={elicitationQuestionPrompts}
+    status="in-progress"
+  />
+);
+
+const elicitationCompleteContent = (
+  <ElicitationResult
+    summary="500 examples · open-ended + factual · train/val/test"
+    duration="45s"
+    answers={elicitationAnswers}
+    status="complete"
+  />
+);
+
+const elicitationCanceledContent = (
+  <ElicitationResult
+    summary="Dataset requirements"
+    questions={elicitationQuestionPrompts}
+    status="canceled"
+    onRetry={() => {}}
+  />
+);
+
 const investigationContent = (
   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
     <div>I've looked at the playground setup. It expects JSONL files with <code style={{ color: "#aaa", fontSize: 13 }}>question</code>, <code style={{ color: "#aaa", fontSize: 13 }}>answer</code>, and <code style={{ color: "#aaa", fontSize: 13 }}>metadata</code> fields, and supports train/val/test splits via filename convention.</div>
@@ -244,10 +285,29 @@ const steps: ScenarioStep[] = [
       { type: "meta", summary: "Read src/playground/config.ts" },
       { type: "meta", summary: "Read src/playground/loader.ts" },
       { type: "agent-rich", content: investigationContent },
+      { type: "agent-rich", content: elicitationInProgressContent },
     ],
   },
 
-  // 5 — Requirements gathered, plan expands, generation begins
+  // 5 — User canceled elicitation
+  {
+    label: "Elicitation canceled",
+    description: "User bailed out — agent proceeds with defaults",
+    promptText: "",
+    checklist: plan(["done", "active"]),
+    elicitation: false,
+    messages: [
+      { type: "user", text: "Help me build a Q&A evaluation dataset for the playground" },
+      { type: "meta", summary: "Thought for 12 seconds", detail: "The user wants a Q&A evaluation dataset for the playground. I should first look at how the playground is configured — what format it expects, what schema, whether it supports splits. Let me read the config and loader." },
+      { type: "meta", summary: "Read src/playground/config.ts" },
+      { type: "meta", summary: "Read src/playground/loader.ts" },
+      { type: "agent-rich", content: investigationContent },
+      { type: "agent-rich", content: elicitationCanceledContent },
+      { type: "agent", text: "No problem — I'll use sensible defaults: 200 examples, mixed question types, standard train/val/test splits." },
+    ],
+  },
+
+  // 6 — Requirements gathered, plan expands, generation begins
   {
     label: "Generating dataset",
     description: "User answered questions, agent is generating",
@@ -260,7 +320,7 @@ const steps: ScenarioStep[] = [
       { type: "meta", summary: "Read src/playground/config.ts" },
       { type: "meta", summary: "Read src/playground/loader.ts" },
       { type: "agent-rich", content: investigationContent },
-      { type: "meta", summary: "User selected: 500 examples, open-ended + factual, train/val/test splits" },
+      { type: "agent-rich", content: elicitationCompleteContent },
       { type: "meta", summary: "Thought for 8 seconds", detail: "500 examples with 70/15/15 split → 350 train, 75 val, 75 test. I'll include metadata: unique ID, source tag, difficulty rating. Mix of open-ended and factual Q&A. Let me generate these now." },
       { type: "agent", text: "Got it — 500 examples, open-ended and factual questions, with standard three-way splits. Generating now." },
       { type: "meta", summary: "Ran generate_dataset.py" },
@@ -281,7 +341,7 @@ const steps: ScenarioStep[] = [
       { type: "meta", summary: "Read src/playground/config.ts" },
       { type: "meta", summary: "Read src/playground/loader.ts" },
       { type: "agent-rich", content: investigationContent },
-      { type: "meta", summary: "User selected: 500 examples, open-ended + factual, train/val/test splits" },
+      { type: "agent-rich", content: elicitationCompleteContent },
       { type: "meta", summary: "Thought for 8 seconds", detail: "500 examples with 70/15/15 split → 350 train, 75 val, 75 test. I'll include metadata: unique ID, source tag, difficulty rating. Mix of open-ended and factual Q&A. Let me generate these now." },
       { type: "agent", text: "Got it — 500 examples, open-ended and factual questions, with standard three-way splits. Generating now." },
       { type: "meta", summary: "Ran generate_dataset.py" },
@@ -304,7 +364,7 @@ const steps: ScenarioStep[] = [
       { type: "meta", summary: "Read src/playground/config.ts" },
       { type: "meta", summary: "Read src/playground/loader.ts" },
       { type: "agent-rich", content: investigationContent },
-      { type: "meta", summary: "User selected: 500 examples, open-ended + factual, train/val/test splits" },
+      { type: "agent-rich", content: elicitationCompleteContent },
       { type: "meta", summary: "Thought for 8 seconds", detail: "500 examples with 70/15/15 split → 350 train, 75 val, 75 test. I'll include metadata: unique ID, source tag, difficulty rating. Mix of open-ended and factual Q&A. Let me generate these now." },
       { type: "agent", text: "Got it — 500 examples, open-ended and factual questions, with standard three-way splits. Generating now." },
       { type: "meta", summary: "Ran generate_dataset.py" },
@@ -327,7 +387,7 @@ const steps: ScenarioStep[] = [
       { type: "meta", summary: "Read src/playground/config.ts" },
       { type: "meta", summary: "Read src/playground/loader.ts" },
       { type: "agent-rich", content: investigationContent },
-      { type: "meta", summary: "User selected: 500 examples, open-ended + factual, train/val/test splits" },
+      { type: "agent-rich", content: elicitationCompleteContent },
       { type: "agent", text: "Got it — 500 examples, open-ended and factual questions, with standard three-way splits. Generating now." },
       { type: "meta", summary: "Ran generate_dataset.py" },
       { type: "agent-rich", content: splitsPreviewContent },
@@ -352,7 +412,7 @@ const steps: ScenarioStep[] = [
       { type: "meta", summary: "Read src/playground/config.ts" },
       { type: "meta", summary: "Read src/playground/loader.ts" },
       { type: "agent-rich", content: investigationContent },
-      { type: "meta", summary: "User selected: 500 examples, open-ended + factual, train/val/test splits" },
+      { type: "agent-rich", content: elicitationCompleteContent },
       { type: "agent", text: "Got it — 500 examples, open-ended and factual questions, with standard three-way splits. Generating now." },
       { type: "meta", summary: "Ran generate_dataset.py" },
       { type: "agent-rich", content: splitsPreviewContent },
