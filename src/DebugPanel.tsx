@@ -1,5 +1,6 @@
 import { motion } from "motion/react";
 import { useFonts, type FontPreset } from "./FontContext";
+import { useUISettings, type ButtonAlign } from "./UISettingsContext";
 
 interface Step {
   label: string;
@@ -19,9 +20,22 @@ const fontOptions: { value: FontPreset; label: string }[] = [
   { value: "geist-native", label: "Geist (lh)" },
 ];
 
-function FontToggle() {
-  const { preset, setPreset } = useFonts();
+const buttonAlignOptions: { value: ButtonAlign; label: string }[] = [
+  { value: "right", label: "Right" },
+  { value: "left", label: "Left" },
+];
 
+function SettingsToggle({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: { value: string; label: string }[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
   return (
     <div
       style={{
@@ -42,22 +56,22 @@ function FontToggle() {
           marginBottom: 8,
         }}
       >
-        Font
+        {label}
       </div>
       <div style={{ display: "flex", gap: 4 }}>
-        {fontOptions.map((opt) => (
+        {options.map((opt) => (
           <button
             key={opt.value}
-            onClick={() => setPreset(opt.value)}
+            onClick={() => onChange(opt.value)}
             style={{
               flex: 1,
               padding: "5px 8px",
               fontSize: 11,
               fontFamily: "inherit",
-              background: preset === opt.value ? "#2a2a2a" : "transparent",
-              border: `1px solid ${preset === opt.value ? "#444" : "#222"}`,
+              background: value === opt.value ? "#2a2a2a" : "transparent",
+              border: `1px solid ${value === opt.value ? "#444" : "#222"}`,
               borderRadius: 6,
-              color: preset === opt.value ? "#e0e0e0" : "#666",
+              color: value === opt.value ? "#e0e0e0" : "#666",
               cursor: "pointer",
               transition: "all 0.12s",
             }}
@@ -67,6 +81,30 @@ function FontToggle() {
         ))}
       </div>
     </div>
+  );
+}
+
+function FontToggle() {
+  const { preset, setPreset } = useFonts();
+  return (
+    <SettingsToggle
+      label="Font"
+      options={fontOptions}
+      value={preset}
+      onChange={(v) => setPreset(v as FontPreset)}
+    />
+  );
+}
+
+function ButtonAlignToggle() {
+  const { buttonAlign, setButtonAlign } = useUISettings();
+  return (
+    <SettingsToggle
+      label="Approve btn align"
+      options={buttonAlignOptions}
+      value={buttonAlign}
+      onChange={(v) => setButtonAlign(v as ButtonAlign)}
+    />
   );
 }
 
@@ -209,8 +247,9 @@ export function DebugPanel({ steps, activeIndex, onSelect, children }: Props) {
         })}
       </div>
 
-      {/* Font toggle */}
+      {/* Settings toggles */}
       <FontToggle />
+      <ButtonAlignToggle />
 
       <div
         style={{

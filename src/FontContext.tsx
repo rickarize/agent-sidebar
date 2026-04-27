@@ -33,13 +33,13 @@ interface FontContextValue {
 }
 
 const FontContext = createContext<FontContextValue>({
-  preset: "system",
+  preset: "geist",
   setPreset: () => {},
-  fonts: presets.system,
+  fonts: presets.geist,
 });
 
 export function FontProvider({ children }: { children: ReactNode }) {
-  const [preset, setPreset] = useState<FontPreset>("system");
+  const [preset, setPreset] = useState<FontPreset>("geist");
 
   return (
     <FontContext.Provider value={{ preset, setPreset, fonts: presets[preset] }}>

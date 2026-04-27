@@ -65,21 +65,13 @@ export function MetaRow({
             )}
           </span>
         ) : pending ? (
-          <span style={{ fontStyle: "italic" }}>
-            {[...`${summary}…`].map((char, ci) => (
-              <motion.span
-                key={ci}
-                animate={{ opacity: [0.5, 0.85, 0.5] }}
-                transition={{
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                  delay: ci * 0.06,
-                }}
-              >
-                {char}
-              </motion.span>
-            ))}
+          <span
+            style={{
+              fontStyle: "italic",
+              animation: "pulse 2s ease-in-out infinite",
+            }}
+          >
+            {summary}…
           </span>
         ) : (
           <span>{summary}</span>

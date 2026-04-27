@@ -76,24 +76,17 @@ function StatusBadge({
   onRetry?: () => void;
 }) {
   if (status === "in-progress") {
-    const text = "In progress";
     return (
-      <span style={{ fontSize: 11, flexShrink: 0, fontStyle: "italic" }}>
-        {[...text].map((char, ci) => (
-          <motion.span
-            key={ci}
-            animate={{ opacity: [0.4, 0.8, 0.4] }}
-            transition={{
-              duration: 2,
-              repeat: Infinity,
-              ease: "easeInOut",
-              delay: ci * 0.06,
-            }}
-            style={{ color: "#888" }}
-          >
-            {char}
-          </motion.span>
-        ))}
+      <span
+        style={{
+          fontSize: 11,
+          flexShrink: 0,
+          fontStyle: "italic",
+          color: "#888",
+          animation: "pulse 2s ease-in-out infinite",
+        }}
+      >
+        In progress
       </span>
     );
   }

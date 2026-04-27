@@ -49,6 +49,12 @@ interface Column {
   width?: number;
 }
 
+interface ActionButton {
+  label: string;
+  icon?: "chart" | "export" | "filter";
+  onClick?: () => void;
+}
+
 interface DataPreviewProps {
   name: string;
   meta?: string;
@@ -59,6 +65,7 @@ interface DataPreviewProps {
   defaultOpen?: boolean;
   footerLinkText?: string;
   footerLinkHref?: string;
+  actionButton?: ActionButton;
 }
 
 function LinkIcon() {
@@ -82,6 +89,40 @@ function LinkIcon() {
   );
 }
 
+function ChartIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <path d="M2 14V6l4 4 3-6 5 5v5H2z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ExportIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <path d="M8 2v8M5 5l3-3 3 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M3 10v3a1 1 0 001 1h8a1 1 0 001-1v-3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function FilterActionIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <path d="M2 3h12l-4 5v4l-4 2V8L2 3z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function getActionIcon(icon?: "chart" | "export" | "filter") {
+  switch (icon) {
+    case "chart": return <ChartIcon />;
+    case "export": return <ExportIcon />;
+    case "filter": return <FilterActionIcon />;
+    default: return null;
+  }
+}
+
 export function DataPreview({
   name,
   meta,
@@ -92,6 +133,7 @@ export function DataPreview({
   defaultOpen = false,
   footerLinkText,
   footerLinkHref,
+  actionButton,
 }: DataPreviewProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [hovered, setHovered] = useState(false);
@@ -228,7 +270,7 @@ export function DataPreview({
                   ))}
                 </tbody>
               </table>
-              {(remaining > 0 || footerLinkHref) && (
+              {(remaining > 0 || footerLinkHref || actionButton) && (
                 <div
                   style={{
                     display: "flex",
@@ -243,26 +285,63 @@ export function DataPreview({
                   <span>
                     {remaining > 0 && `+ ${remaining} more row${remaining !== 1 ? "s" : ""}`}
                   </span>
-                  {footerLinkHref && (
-                    <a
-                      href={footerLinkHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        color: "#777",
-                        textDecoration: "none",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 4,
-                        transition: "color 0.12s",
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.color = "#ccc")}
-                      onMouseLeave={(e) => (e.currentTarget.style.color = "#777")}
-                    >
-                      {footerLinkText || "Open"}
-                      <LinkIcon />
-                    </a>
-                  )}
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    {actionButton && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          actionButton.onClick?.();
+                        }}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 5,
+                          padding: "4px 10px",
+                          fontSize: 11,
+                          fontFamily: "inherit",
+                          background: "#1a1a1a",
+                          border: "1px solid #333",
+                          borderRadius: 5,
+                          color: "#aaa",
+                          cursor: "pointer",
+                          transition: "background 0.12s, border-color 0.12s, color 0.12s",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = "#252525";
+                          e.currentTarget.style.borderColor = "#444";
+                          e.currentTarget.style.color = "#ccc";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "#1a1a1a";
+                          e.currentTarget.style.borderColor = "#333";
+                          e.currentTarget.style.color = "#aaa";
+                        }}
+                      >
+                        {getActionIcon(actionButton.icon)}
+                        {actionButton.label}
+                      </button>
+                    )}
+                    {footerLinkHref && (
+                      <a
+                        href={footerLinkHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          color: "#777",
+                          textDecoration: "none",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                          transition: "color 0.12s",
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = "#ccc")}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = "#777")}
+                      >
+                        {footerLinkText || "Open"}
+                        <LinkIcon />
+                      </a>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

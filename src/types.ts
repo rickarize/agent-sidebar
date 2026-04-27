@@ -14,11 +14,12 @@ export interface ElicitationOption {
   id: string;
   label: string;
   hasTextEntry?: boolean;
+  placeholder?: string;
 }
 
 export interface ElicitationQuestion {
   id: string;
-  prompt: string;
+  prompt: React.ReactNode;
   type: "single" | "multi" | "freeform";
   options?: ElicitationOption[];
 }

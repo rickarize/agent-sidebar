@@ -1,13 +1,15 @@
 import { useState, useEffect, type ReactNode } from "react";
+import { motion } from "motion/react";
 import { PromptWithTongue } from "./PromptWithTongue";
 import { DebugPanel } from "./DebugPanel";
 import { MetaRow } from "./MetaRow";
-import { EntityChip } from "./EntityChip";
 import { DataPreview } from "./DataPreview";
-import { ElicitationResult } from "./ElicitationResult";
+import { PendingToolCall, ToolApprovalButtons } from "./PendingToolCall";
+import { NextStepsStack } from "./NextStepsStack";
 import { useStickToBottom } from "./useStickToBottom";
+import { useUISettings } from "./UISettingsContext";
 import { PerfMonitor } from "./PerfMonitor";
-import type { ChecklistState, ItemStatus, ElicitationQuestion } from "./types";
+import type { ChecklistState, ElicitationQuestion, ElicitationAnswers } from "./types";
 
 // ---------------------------------------------------------------------------
 // Message types
@@ -20,193 +22,176 @@ type Msg =
   | { type: "agent-streaming"; text: string };
 
 // ---------------------------------------------------------------------------
-// Plan items (tongue checklist)
+// Elicitation questions — Tool permission (option 3b)
 // ---------------------------------------------------------------------------
-const planItems = [
-  { id: "1", text: "Investigate current playground" },
-  { id: "2", text: "Gather dataset requirements" },
-  { id: "3", text: "Generate dataset" },
-  { id: "4", text: "Load dataset" },
-  { id: "5", text: "Run playground" },
-];
-
-function plan(statuses: ItemStatus[]): ChecklistState {
-  return { items: statuses.map((s, i) => ({ ...planItems[i], status: s })) };
-}
-
-// ---------------------------------------------------------------------------
-// Elicitation questions (shown during "Gather dataset requirements")
-// ---------------------------------------------------------------------------
-const datasetQuestions: ElicitationQuestion[] = [
+const toolPermissionQuestions: ElicitationQuestion[] = [
   {
-    id: "q-count",
-    prompt: "How many examples should the dataset contain?",
+    id: "q-permission",
+    prompt: <>Allow tool <code style={{ color: "#aaa", fontSize: 13 }}>px_filter_set</code>?</>,
     type: "single",
     options: [
-      { id: "50", label: "50 — quick test" },
-      { id: "200", label: "200 — small but meaningful" },
-      { id: "500", label: "500 — solid baseline" },
-      { id: "custom", label: "", hasTextEntry: true },
+      { id: "approve-once", label: "Approve this time" },
+      { id: "always-allow", label: "Always allow 'Change page filter'" },
+      { id: "deny", label: "Deny" },
+      { id: "custom", label: "Other", hasTextEntry: true, placeholder: "What should PXI do?" },
     ],
-  },
-  {
-    id: "q-content",
-    prompt: "What type of content should the examples cover?",
-    type: "multi",
-    options: [
-      { id: "open-ended", label: "Open-ended questions" },
-      { id: "multiple-choice", label: "Multiple choice" },
-      { id: "factual", label: "Factual Q&A" },
-      { id: "custom", label: "", hasTextEntry: true },
-    ],
-  },
-  {
-    id: "q-splits",
-    prompt: "Should the dataset include splits?",
-    type: "single",
-    options: [
-      { id: "standard", label: "Train / validate / test" },
-      { id: "train-test", label: "Train / test only" },
-      { id: "none", label: "No splits — single file" },
-      { id: "custom", label: "", hasTextEntry: true },
-    ],
-  },
-  {
-    id: "q-extra",
-    prompt: "Any other requirements?",
-    type: "freeform",
   },
 ];
 
 // ---------------------------------------------------------------------------
-// Sample dataset rows for data preview
+// Sample data — frustrated customers
 // ---------------------------------------------------------------------------
-const dataColumns = [
-  { key: "id", label: "ID", width: 50 },
-  { key: "question", label: "Question" },
-  { key: "type", label: "Type", width: 80 },
-  { key: "difficulty", label: "Diff", width: 50 },
+const frustratedColumns = [
+  { key: "session", label: "Session", width: 100 },
+  { key: "user", label: "User" },
+  { key: "sentiment", label: "Sentiment", width: 80 },
+  { key: "issue", label: "Issue" },
 ];
 
-const sampleTrainRows = [
-  { id: "001", question: "What causes ocean tides?", type: "factual", difficulty: "easy" },
-  { id: "002", question: "Explain how neural networks learn", type: "open", difficulty: "hard" },
-  { id: "003", question: "What is the capital of France?", type: "factual", difficulty: "easy" },
-  { id: "004", question: "Describe the water cycle in detail", type: "open", difficulty: "med" },
-  { id: "005", question: "How does photosynthesis work?", type: "factual", difficulty: "med" },
-  { id: "006", question: "Compare TCP and UDP protocols", type: "open", difficulty: "hard" },
-  { id: "007", question: "What is the speed of light?", type: "factual", difficulty: "easy" },
-];
-
-const sampleValRows = [
-  { id: "351", question: "Why do leaves change color?", type: "factual", difficulty: "easy" },
-  { id: "352", question: "Explain quantum entanglement", type: "open", difficulty: "hard" },
-  { id: "353", question: "What is a black hole?", type: "factual", difficulty: "med" },
-  { id: "354", question: "Describe the process of mitosis", type: "open", difficulty: "med" },
-];
-
-const sampleTestRows = [
-  { id: "426", question: "How do vaccines work?", type: "factual", difficulty: "med" },
-  { id: "427", question: "Explain the greenhouse effect", type: "open", difficulty: "med" },
-  { id: "428", question: "What causes earthquakes?", type: "factual", difficulty: "easy" },
-  { id: "429", question: "Describe how encryption works", type: "open", difficulty: "hard" },
+const frustratedCustomerRows = [
+  { session: "sess_8a2f", user: "alice@acme.co", sentiment: "angry", issue: "Payment failed 3 times" },
+  { session: "sess_9c3d", user: "bob@example.com", sentiment: "frustrated", issue: "Can't access dashboard" },
+  { session: "sess_1e4a", user: "carol@corp.io", sentiment: "annoyed", issue: "Slow response times" },
+  { session: "sess_7b5c", user: "dave@startup.co", sentiment: "angry", issue: "Data export broken" },
+  { session: "sess_2f6e", user: "eve@bigco.com", sentiment: "frustrated", issue: "Missing invoices" },
+  { session: "sess_4d8g", user: "frank@tech.io", sentiment: "annoyed", issue: "API rate limiting" },
+  { session: "sess_5e9h", user: "grace@retail.co", sentiment: "angry", issue: "Order stuck in processing" },
 ];
 
 // ---------------------------------------------------------------------------
 // Reusable rich content fragments
 // ---------------------------------------------------------------------------
-const elicitationQuestionPrompts = [
-  "How many examples should the dataset contain?",
-  "What type of content should the examples cover?",
-  "Should the dataset include splits?",
-  "Any other requirements?",
-];
 
-const elicitationAnswers = [
-  { question: "How many examples?", type: "single" as const, selected: ["500 — solid baseline"] },
-  { question: "Content types", type: "multi" as const, selected: ["Open-ended questions", "Factual Q&A"] },
-  { question: "Dataset splits", type: "single" as const, selected: ["Train / validate / test"] },
-  { question: "Other requirements", type: "freeform" as const, selected: ["Include difficulty ratings and source tags for each example"] },
-];
-
-const elicitationInProgressContent = (
-  <ElicitationResult
-    summary="Dataset requirements"
-    questions={elicitationQuestionPrompts}
-    status="in-progress"
+const pendingToolNoButtonsContent = (
+  <PendingToolCall
+    toolName="bash"
+    command="px filter set --range=30d --type=traces"
+    hideButtons
   />
 );
 
-const elicitationCompleteContent = (
-  <ElicitationResult
-    summary="500 examples · open-ended + factual · train/val/test"
-    duration="45s"
-    answers={elicitationAnswers}
-    status="complete"
-  />
-);
-
-const elicitationCanceledContent = (
-  <ElicitationResult
-    summary="Dataset requirements"
-    questions={elicitationQuestionPrompts}
-    status="canceled"
-    onRetry={() => {}}
-  />
-);
-
-const investigationContent = (
-  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-    <div>I've looked at the playground setup. It expects JSONL files with <code style={{ color: "#aaa", fontSize: 13 }}>question</code>, <code style={{ color: "#aaa", fontSize: 13 }}>answer</code>, and <code style={{ color: "#aaa", fontSize: 13 }}>metadata</code> fields, and supports train/val/test splits via filename convention.</div>
-    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-      <EntityChip name="config.ts" meta="src/playground" />
-      <EntityChip name="loader.ts" meta="src/playground" />
+function PendingToolWithExternalButtons() {
+  const { buttonAlign } = useUISettings();
+  const isRight = buttonAlign === "right";
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <PendingToolCall
+        toolName="bash"
+        command="px filter set --range=30d --type=traces"
+        hideButtons
+      />
+      <div style={{ display: "flex", alignItems: "center", padding: "4px 0 8px", flexDirection: isRight ? "row" : "row-reverse" }}>
+        <span style={{ fontSize: 14, color: "#ccc" }}>
+          Allow tool <code style={{ color: "#aaa", fontSize: 13 }}>px_filter_set</code>?
+        </span>
+        <div style={{ flex: 1 }} />
+        <ToolApprovalButtons onApprove={() => {}} onDeny={() => {}} onModify={() => {}} />
+      </div>
     </div>
-    <div>I have a few questions about what you'd like in the dataset.</div>
-  </div>
+  );
+}
+
+function ColoredApprovalButtons() {
+  return (
+    <div style={{ display: "flex", gap: 8 }}>
+      <motion.button
+        whileTap={{ scale: 0.97 }}
+        style={{
+          padding: "5px 12px",
+          fontSize: 12,
+          fontFamily: "inherit",
+          background: "transparent",
+          border: "1px solid #333",
+          borderRadius: 6,
+          color: "#999",
+          cursor: "pointer",
+        }}
+      >
+        Deny
+      </motion.button>
+      <motion.button
+        whileTap={{ scale: 0.97 }}
+        style={{
+          padding: "5px 12px",
+          fontSize: 12,
+          fontFamily: "inherit",
+          background: "#1a3d1a",
+          border: "1px solid #2d5a2d",
+          borderRadius: 6,
+          color: "#7fbf7f",
+          cursor: "pointer",
+        }}
+      >
+        Approve
+      </motion.button>
+    </div>
+  );
+}
+
+function PendingToolWithColoredButtons() {
+  const { buttonAlign } = useUISettings();
+  const isRight = buttonAlign === "right";
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <PendingToolCall
+        toolName="bash"
+        command="px filter set --range=30d --type=traces"
+        hideButtons
+      />
+      <div style={{ display: "flex", alignItems: "center", padding: "4px 0 8px", flexDirection: isRight ? "row" : "row-reverse" }}>
+        <span style={{ fontSize: 14, color: "#ccc" }}>
+          Allow tool <code style={{ color: "#aaa", fontSize: 13 }}>px_filter_set</code>?
+        </span>
+        <div style={{ flex: 1 }} />
+        <ColoredApprovalButtons />
+      </div>
+    </div>
+  );
+}
+
+const approvedToolContent = (
+  <PendingToolCall
+    toolName="bash"
+    command="px filter set --range=30d --type=traces"
+    status="approved"
+  />
 );
 
-const splitsPreviewContent = (
-  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-    <div>Created 3 splits:</div>
-    <DataPreview
-      name="train.jsonl"
-      meta="350 examples"
-      columns={dataColumns}
-      rows={sampleTrainRows}
-      maxRows={5}
-    />
-    <DataPreview
-      name="val.jsonl"
-      meta="75 examples"
-      columns={dataColumns}
-      rows={sampleValRows}
-      maxRows={4}
-    />
-    <DataPreview
-      name="test.jsonl"
-      meta="75 examples"
-      columns={dataColumns}
-      rows={sampleTestRows}
-      maxRows={4}
-    />
-  </div>
+const nextStepsContent = (
+  <NextStepsStack
+    steps={[
+      { id: "viz", label: "Create a visualization", description: "Chart sentiment trends over time", icon: "chart" },
+      { id: "export", label: "Export to CSV", description: "Download for external analysis", icon: "export" },
+      { id: "alert", label: "Set up alerts", description: "Get notified when frustration spikes", icon: "alert" },
+    ]}
+    onSelect={() => {}}
+  />
 );
 
-const uploadedDatasetContent = (
-  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-    <div>Dataset uploaded and ready in Phoenix:</div>
-    <DataPreview
-      name="qa-eval-500"
-      meta="500 examples · 3 splits"
-      href="#/datasets/qa-eval-500"
-      columns={dataColumns}
-      rows={sampleTrainRows}
-      maxRows={5}
-      defaultOpen
-      footerLinkText="Open dataset"
-      footerLinkHref="#/datasets/qa-eval-500"
-    />
+const resultsTableContent = (
+  <DataPreview
+    name="frustrated_customers.json"
+    meta="47 matches · last 30 days"
+    columns={frustratedColumns}
+    rows={frustratedCustomerRows}
+    maxRows={5}
+    defaultOpen
+    actionButton={{
+      label: "Visualize",
+      icon: "chart",
+      onClick: () => {},
+    }}
+  />
+);
+
+const analysisContent = (
+  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+    <div style={{ fontSize: 14, color: "#ccc", lineHeight: 1.5 }}>
+      I found <strong style={{ color: "#e8c48a" }}>47 sessions</strong> with frustrated customers in the last 30 days.
+      Common issues: payment failures (18), access problems (12), and slow performance (9).
+    </div>
+    {resultsTableContent}
+    {nextStepsContent}
   </div>
 );
 
@@ -216,14 +201,17 @@ const uploadedDatasetContent = (
 interface ScenarioStep {
   label: string;
   description?: string;
-  promptText: string;        // what's in the textarea
+  promptText: string;
   checklist: ChecklistState;
-  elicitation: boolean;      // whether elicitation questions show
-  messages: Msg[];           // conversation so far
+  elicitation: boolean;
+  elicitationQuestions?: ElicitationQuestion[];
+  elicitationDelay?: number;
+  elicitationDefaultAnswers?: ElicitationAnswers;
+  messages: Msg[];
 }
 
 const steps: ScenarioStep[] = [
-  // 0 — Empty state, user hasn't typed yet
+  // 0 — Empty state
   {
     label: "Empty",
     description: "Fresh lane, no conversation yet",
@@ -233,194 +221,125 @@ const steps: ScenarioStep[] = [
     messages: [],
   },
 
-  // 1 — User is composing their prompt
+  // 1 — User typing prompt
   {
-    label: "User typing prompt",
-    description: "User is drafting a request in the textarea",
-    promptText: "Help me build a Q&A evaluation dataset for the playground",
+    label: "User typing",
+    description: "User drafting request",
+    promptText: "Find frustrated customers in the last month",
     checklist: { items: [] },
     elicitation: false,
     messages: [],
   },
 
-  // 2 — Prompt submitted, agent is thinking
+  // 2 — Submitted, LLM thinking
   {
-    label: "Submitted — agent thinking",
-    description: "Prompt sent, plan appears with first item active",
+    label: "Thinking",
+    description: "Request submitted, LLM processing",
     promptText: "",
-    checklist: plan(["active", "pending"]),
+    checklist: { items: [] },
     elicitation: false,
     messages: [
-      { type: "user", text: "Help me build a Q&A evaluation dataset for the playground" },
+      { type: "user", text: "Find frustrated customers in the last month" },
       { type: "meta", summary: "Thinking", pending: true },
     ],
   },
 
-  // 3 — Agent investigated playground, reports findings
+  // 3a — Pending tool: Buttons outside card
   {
-    label: "Investigated playground",
-    description: "Agent read files and reports what it found",
+    label: "3a: Tool (external buttons)",
+    description: "Approve/deny/modify below the card",
     promptText: "",
-    checklist: plan(["done", "active"]),
+    checklist: { items: [] },
     elicitation: false,
     messages: [
-      { type: "user", text: "Help me build a Q&A evaluation dataset for the playground" },
-      { type: "meta", summary: "Thought for 12 seconds", detail: "The user wants a Q&A evaluation dataset for the playground. I should first look at how the playground is configured — what format it expects, what schema, whether it supports splits. Let me read the config and loader." },
-      { type: "meta", summary: "Read src/playground/config.ts" },
-      { type: "meta", summary: "Read src/playground/loader.ts" },
-      { type: "agent-rich", content: investigationContent },
+      { type: "user", text: "Find frustrated customers in the last month" },
+      { type: "meta", summary: "Thought for 3 seconds", detail: "The user wants to find frustrated customers from the last month. I need to adjust the page filter to show the last 30 days, then search for annotations with negative sentiment." },
+      { type: "agent-rich", content: <PendingToolWithExternalButtons /> },
     ],
   },
 
-  // 4 — Elicitation: agent asks dataset questions
+  // 3b — Pending tool: Elicitation-style permission
   {
-    label: "Elicitation — dataset requirements",
-    description: "Agent needs input — elicitation carousel replaces textarea",
+    label: "3b: Tool (elicitation)",
+    description: "Permission via elicitation carousel",
     promptText: "",
-    checklist: plan(["done", "active"]),
+    checklist: { items: [] },
     elicitation: true,
+    elicitationQuestions: toolPermissionQuestions,
+    elicitationDelay: 0,
+    elicitationDefaultAnswers: { "q-permission": ["approve-once"] },
     messages: [
-      { type: "user", text: "Help me build a Q&A evaluation dataset for the playground" },
-      { type: "meta", summary: "Thought for 12 seconds", detail: "The user wants a Q&A evaluation dataset for the playground. I should first look at how the playground is configured — what format it expects, what schema, whether it supports splits. Let me read the config and loader." },
-      { type: "meta", summary: "Read src/playground/config.ts" },
-      { type: "meta", summary: "Read src/playground/loader.ts" },
-      { type: "agent-rich", content: investigationContent },
-      { type: "agent-rich", content: elicitationInProgressContent },
+      { type: "user", text: "Find frustrated customers in the last month" },
+      { type: "meta", summary: "Thought for 3 seconds", detail: "The user wants to find frustrated customers from the last month. I need to adjust the page filter to show the last 30 days, then search for annotations with negative sentiment." },
+      { type: "agent-rich", content: pendingToolNoButtonsContent },
     ],
   },
 
-  // 5 — User canceled elicitation
+  // 3c — Pending tool: Colored approve/deny buttons
   {
-    label: "Elicitation canceled",
-    description: "User bailed out — agent proceeds with defaults",
+    label: "3c: Tool (colored buttons)",
+    description: "Green approve, neutral deny",
     promptText: "",
-    checklist: plan(["done", "active"]),
+    checklist: { items: [] },
     elicitation: false,
     messages: [
-      { type: "user", text: "Help me build a Q&A evaluation dataset for the playground" },
-      { type: "meta", summary: "Thought for 12 seconds", detail: "The user wants a Q&A evaluation dataset for the playground. I should first look at how the playground is configured — what format it expects, what schema, whether it supports splits. Let me read the config and loader." },
-      { type: "meta", summary: "Read src/playground/config.ts" },
-      { type: "meta", summary: "Read src/playground/loader.ts" },
-      { type: "agent-rich", content: investigationContent },
-      { type: "agent-rich", content: elicitationCanceledContent },
-      { type: "agent", text: "No problem — I'll use sensible defaults: 200 examples, mixed question types, standard train/val/test splits." },
+      { type: "user", text: "Find frustrated customers in the last month" },
+      { type: "meta", summary: "Thought for 3 seconds", detail: "The user wants to find frustrated customers from the last month. I need to adjust the page filter to show the last 30 days, then search for annotations with negative sentiment." },
+      { type: "agent-rich", content: <PendingToolWithColoredButtons /> },
     ],
   },
 
-  // 6 — Requirements gathered, plan expands, generation begins
+  // 4 — Tool approved, searching
   {
-    label: "Generating dataset",
-    description: "User answered questions, agent is generating",
+    label: "Searching",
+    description: "Filter applied, searching annotations",
     promptText: "",
-    checklist: plan(["done", "done", "active", "pending", "pending"]),
+    checklist: { items: [] },
     elicitation: false,
     messages: [
-      { type: "user", text: "Help me build a Q&A evaluation dataset for the playground" },
-      { type: "meta", summary: "Thought for 12 seconds", detail: "The user wants a Q&A evaluation dataset for the playground. I should first look at how the playground is configured — what format it expects, what schema, whether it supports splits. Let me read the config and loader." },
-      { type: "meta", summary: "Read src/playground/config.ts" },
-      { type: "meta", summary: "Read src/playground/loader.ts" },
-      { type: "agent-rich", content: investigationContent },
-      { type: "agent-rich", content: elicitationCompleteContent },
-      { type: "meta", summary: "Thought for 8 seconds", detail: "500 examples with 70/15/15 split → 350 train, 75 val, 75 test. I'll include metadata: unique ID, source tag, difficulty rating. Mix of open-ended and factual Q&A. Let me generate these now." },
-      { type: "agent", text: "Got it — 500 examples, open-ended and factual questions, with standard three-way splits. Generating now." },
-      { type: "meta", summary: "Ran generate_dataset.py" },
-      { type: "agent-streaming", text: "Writing the dataset files" },
+      { type: "user", text: "Find frustrated customers in the last month" },
+      { type: "meta", summary: "Thought for 3 seconds", detail: "The user wants to find frustrated customers from the last month. I need to adjust the page filter to show the last 30 days, then search for annotations with negative sentiment." },
+      { type: "agent", text: "I'll need to adjust the page filters to show traces from the last 30 days." },
+      { type: "agent-rich", content: approvedToolContent },
+      { type: "meta", summary: "Changed filter to last 30 days" },
+      { type: "meta", summary: "Searching annotations", pending: true },
     ],
   },
 
-  // 6 — Dataset generated, summary shown
+  // 5 — Analyzing traces
   {
-    label: "Dataset generated",
-    description: "Files written, agent shows summary",
+    label: "Analyzing",
+    description: "Analyzing trace patterns",
     promptText: "",
-    checklist: plan(["done", "done", "done", "active", "pending"]),
+    checklist: { items: [] },
     elicitation: false,
     messages: [
-      { type: "user", text: "Help me build a Q&A evaluation dataset for the playground" },
-      { type: "meta", summary: "Thought for 12 seconds", detail: "The user wants a Q&A evaluation dataset for the playground. I should first look at how the playground is configured — what format it expects, what schema, whether it supports splits. Let me read the config and loader." },
-      { type: "meta", summary: "Read src/playground/config.ts" },
-      { type: "meta", summary: "Read src/playground/loader.ts" },
-      { type: "agent-rich", content: investigationContent },
-      { type: "agent-rich", content: elicitationCompleteContent },
-      { type: "meta", summary: "Thought for 8 seconds", detail: "500 examples with 70/15/15 split → 350 train, 75 val, 75 test. I'll include metadata: unique ID, source tag, difficulty rating. Mix of open-ended and factual Q&A. Let me generate these now." },
-      { type: "agent", text: "Got it — 500 examples, open-ended and factual questions, with standard three-way splits. Generating now." },
-      { type: "meta", summary: "Ran generate_dataset.py" },
-      { type: "agent-rich", content: splitsPreviewContent },
-      { type: "agent", text: "Uploading dataset to Phoenix." },
-      { type: "meta", summary: "Uploading dataset", pending: true },
+      { type: "user", text: "Find frustrated customers in the last month" },
+      { type: "meta", summary: "Thought for 3 seconds", detail: "The user wants to find frustrated customers from the last month. I need to adjust the page filter to show the last 30 days, then search for annotations with negative sentiment." },
+      { type: "agent", text: "I'll need to adjust the page filters to show traces from the last 30 days." },
+      { type: "agent-rich", content: approvedToolContent },
+      { type: "meta", summary: "Changed filter to last 30 days" },
+      { type: "meta", summary: "Found 47 sessions with negative sentiment" },
+      { type: "meta", summary: "Analyzing trace patterns", pending: true },
     ],
   },
 
-  // 7 — Dataset uploaded
+  // 6 — Results with table and next steps
   {
-    label: "Dataset uploaded",
-    description: "Splits uploaded to Phoenix, dataset card shown",
+    label: "Results + next steps",
+    description: "Table with visualize button, stacked suggestions",
     promptText: "",
-    checklist: plan(["done", "done", "done", "active", "pending"]),
+    checklist: { items: [] },
     elicitation: false,
     messages: [
-      { type: "user", text: "Help me build a Q&A evaluation dataset for the playground" },
-      { type: "meta", summary: "Thought for 12 seconds", detail: "The user wants a Q&A evaluation dataset for the playground. I should first look at how the playground is configured — what format it expects, what schema, whether it supports splits. Let me read the config and loader." },
-      { type: "meta", summary: "Read src/playground/config.ts" },
-      { type: "meta", summary: "Read src/playground/loader.ts" },
-      { type: "agent-rich", content: investigationContent },
-      { type: "agent-rich", content: elicitationCompleteContent },
-      { type: "meta", summary: "Thought for 8 seconds", detail: "500 examples with 70/15/15 split → 350 train, 75 val, 75 test. I'll include metadata: unique ID, source tag, difficulty rating. Mix of open-ended and factual Q&A. Let me generate these now." },
-      { type: "agent", text: "Got it — 500 examples, open-ended and factual questions, with standard three-way splits. Generating now." },
-      { type: "meta", summary: "Ran generate_dataset.py" },
-      { type: "agent-rich", content: splitsPreviewContent },
-      { type: "meta", summary: "Uploaded dataset to Phoenix" },
-      { type: "agent-rich", content: uploadedDatasetContent },
-    ],
-  },
-
-  // 8 — Running playground
-  {
-    label: "Running playground",
-    description: "Playground starting up with the new dataset",
-    promptText: "",
-    checklist: plan(["done", "done", "done", "done", "active"]),
-    elicitation: false,
-    messages: [
-      { type: "user", text: "Help me build a Q&A evaluation dataset for the playground" },
-      { type: "meta", summary: "Thought for 12 seconds", detail: "The user wants a Q&A evaluation dataset for the playground. I should first look at how the playground is configured — what format it expects, what schema, whether it supports splits. Let me read the config and loader." },
-      { type: "meta", summary: "Read src/playground/config.ts" },
-      { type: "meta", summary: "Read src/playground/loader.ts" },
-      { type: "agent-rich", content: investigationContent },
-      { type: "agent-rich", content: elicitationCompleteContent },
-      { type: "agent", text: "Got it — 500 examples, open-ended and factual questions, with standard three-way splits. Generating now." },
-      { type: "meta", summary: "Ran generate_dataset.py" },
-      { type: "agent-rich", content: splitsPreviewContent },
-      { type: "meta", summary: "Uploaded dataset to Phoenix" },
-      { type: "agent-rich", content: uploadedDatasetContent },
-      { type: "agent", text: "Starting the playground with the new dataset." },
-      { type: "meta", summary: "Ran npm run playground:start" },
-      { type: "agent-streaming", text: "Playground is starting on http://localhost:3000 — it should open in your browser" },
-    ],
-  },
-
-  // 9 — All done
-  {
-    label: "Complete",
-    description: "All steps done, playground running",
-    promptText: "",
-    checklist: plan(["done", "done", "done", "done", "done"]),
-    elicitation: false,
-    messages: [
-      { type: "user", text: "Help me build a Q&A evaluation dataset for the playground" },
-      { type: "meta", summary: "Thought for 12 seconds", detail: "The user wants a Q&A evaluation dataset for the playground. I should first look at how the playground is configured — what format it expects, what schema, whether it supports splits. Let me read the config and loader." },
-      { type: "meta", summary: "Read src/playground/config.ts" },
-      { type: "meta", summary: "Read src/playground/loader.ts" },
-      { type: "agent-rich", content: investigationContent },
-      { type: "agent-rich", content: elicitationCompleteContent },
-      { type: "agent", text: "Got it — 500 examples, open-ended and factual questions, with standard three-way splits. Generating now." },
-      { type: "meta", summary: "Ran generate_dataset.py" },
-      { type: "agent-rich", content: splitsPreviewContent },
-      { type: "meta", summary: "Uploaded dataset to Phoenix" },
-      { type: "agent-rich", content: uploadedDatasetContent },
-      { type: "agent", text: "Starting the playground with the new dataset." },
-      { type: "meta", summary: "Ran npm run playground:start" },
-      { type: "agent", text: "All done. The playground is running at http://localhost:3000 with your 500-example Q&A dataset. You can also view and manage the dataset directly in Phoenix." },
+      { type: "user", text: "Find frustrated customers in the last month" },
+      { type: "meta", summary: "Thought for 3 seconds", detail: "The user wants to find frustrated customers from the last month. I need to adjust the page filter to show the last 30 days, then search for annotations with negative sentiment." },
+      { type: "agent", text: "I'll need to adjust the page filters to show traces from the last 30 days." },
+      { type: "agent-rich", content: approvedToolContent },
+      { type: "meta", summary: "Changed filter to last 30 days" },
+      { type: "meta", summary: "Found 47 sessions with negative sentiment" },
+      { type: "meta", summary: "Analyzed trace patterns" },
+      { type: "agent-rich", content: analysisContent },
     ],
   },
 ];
@@ -590,8 +509,10 @@ export default function App() {
             <div style={{ flexShrink: 0, maxHeight: "50vh", overflowY: "auto", padding: "0 10px 10px" }}>
               <PromptWithTongue
                 checklist={step.checklist}
-                questions={step.elicitation ? datasetQuestions : undefined}
+                questions={step.elicitation ? (step.elicitationQuestions || toolPermissionQuestions) : undefined}
                 defaultPrompt={step.promptText}
+                elicitationDelay={step.elicitationDelay}
+                defaultAnswers={step.elicitationDefaultAnswers}
               />
             </div>
           </div>

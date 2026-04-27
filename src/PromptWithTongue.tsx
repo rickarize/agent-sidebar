@@ -200,6 +200,7 @@ function OptionButton({
   type,
   label,
   hasTextEntry,
+  placeholder,
   textValue,
   onToggle,
   onTextChange,
@@ -208,6 +209,7 @@ function OptionButton({
   type: "single" | "multi";
   label: string;
   hasTextEntry?: boolean;
+  placeholder?: string;
   textValue?: string;
   onToggle: () => void;
   onTextChange?: (value: string) => void;
@@ -298,7 +300,7 @@ function OptionButton({
             ref={inputRef}
             type="text"
             value={textValue || ""}
-            placeholder="Enter a different value..."
+            placeholder={placeholder || "Enter a different value..."}
             onMouseDown={() => { if (!selected) onToggle(); }}
             onChange={(e) => {
               if (!selected) onToggle();
@@ -543,6 +545,7 @@ function ElicitationCarousel({
                       type={question.type as "single" | "multi"}
                       label={opt.label}
                       hasTextEntry={opt.hasTextEntry}
+                      placeholder={opt.placeholder}
                       textValue={customTexts[`${question.id}:${opt.id}`]}
                       onToggle={() => toggleOption(question.id, opt.id, question.type as "single" | "multi")}
                       onTextChange={(v) => onCustomTextChange(`${question.id}:${opt.id}`, v)}
@@ -655,17 +658,24 @@ export function PromptWithTongue({
   checklist,
   questions,
   defaultPrompt = "",
+  elicitationDelay = ELICITATION_ENTRY_DELAY,
+  defaultAnswers = {},
 }: {
   checklist: ChecklistState;
   questions?: ElicitationQuestion[];
   defaultPrompt?: string;
+  elicitationDelay?: number;
+  defaultAnswers?: ElicitationAnswers;
 }) {
   const [prompt, setPrompt] = useState(defaultPrompt);
 
   useEffect(() => {
     setPrompt(defaultPrompt);
   }, [defaultPrompt]);
-  const [answers, setAnswers] = useState<ElicitationAnswers>({});
+  const [answers, setAnswers] = useState<ElicitationAnswers>(defaultAnswers);
+  useEffect(() => {
+    setAnswers(defaultAnswers);
+  }, [defaultAnswers]);
   const [customTexts, setCustomTexts] = useState<Record<string, string>>({});
   const [showElicitation, setShowElicitation] = useState(false);
   const hasItems = checklist.items.length > 0;
@@ -674,12 +684,16 @@ export function PromptWithTongue({
   // Delay the switch from textarea to elicitation to sync with the checklist spinner
   useEffect(() => {
     if (isElicitation) {
-      const timer = setTimeout(() => setShowElicitation(true), ELICITATION_ENTRY_DELAY * 1000);
-      return () => clearTimeout(timer);
+      if (elicitationDelay === 0) {
+        setShowElicitation(true);
+      } else {
+        const timer = setTimeout(() => setShowElicitation(true), elicitationDelay * 1000);
+        return () => clearTimeout(timer);
+      }
     } else {
       setShowElicitation(false);
     }
-  }, [isElicitation]);
+  }, [isElicitation, elicitationDelay]);
   const prevStatusMapRef = useRef<Record<string, ItemStatus>>({});
 
   const completionStaggerMap: Record<string, number> = {};
