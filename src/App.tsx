@@ -195,6 +195,204 @@ const analysisContent = (
   </div>
 );
 
+function BarChart({ data }: { data: { label: string; value: number; color: string }[] }) {
+  const max = Math.max(...data.map((d) => d.value));
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {data.map((d) => (
+        <div key={d.label} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ width: 100, fontSize: 12, color: "#999", textAlign: "right", flexShrink: 0 }}>
+            {d.label}
+          </span>
+          <div style={{ flex: 1, height: 6, background: "#1a1a1a", borderRadius: 3, overflow: "hidden" }}>
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${(d.value / max) * 100}%` }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
+              style={{ height: "100%", background: d.color, borderRadius: 3 }}
+            />
+          </div>
+          <span style={{ width: 30, fontSize: 12, color: "#777", flexShrink: 0 }}>{d.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function VerticalBarChart({ data }: { data: { value: number; color: string }[] }) {
+  const max = Math.max(...data.map((d) => d.value));
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 60 }}>
+      {data.map((d, i) => (
+        <motion.div
+          key={i}
+          initial={{ height: 0 }}
+          animate={{ height: `${(d.value / max) * 100}%` }}
+          transition={{ duration: 0.5, ease: "easeOut", delay: i * 0.02 }}
+          style={{ width: 6, background: d.color, borderRadius: 2, minHeight: 2 }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function StackedBarChart({ data }: { data: { label: string; segments: { value: number; color: string }[] }[] }) {
+  const totals = data.map((d) => d.segments.reduce((sum, s) => sum + s.value, 0));
+  const max = Math.max(...totals);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {data.map((d, i) => (
+        <div key={d.label} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ width: 60, fontSize: 11, color: "#999", textAlign: "right", flexShrink: 0 }}>
+            {d.label}
+          </span>
+          <div style={{ flex: 1, height: 6, background: "#1a1a1a", borderRadius: 3, overflow: "hidden", display: "flex" }}>
+            {d.segments.map((seg, j) => (
+              <motion.div
+                key={j}
+                initial={{ width: 0 }}
+                animate={{ width: `${(seg.value / max) * 100}%` }}
+                transition={{ duration: 0.5, ease: "easeOut", delay: j * 0.1 }}
+                style={{ height: "100%", background: seg.color }}
+              />
+            ))}
+          </div>
+          <span style={{ width: 30, fontSize: 11, color: "#777", flexShrink: 0 }}>{totals[i]}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LineChart({ lines, width = 200, height = 60 }: { lines: { data: number[]; color: string }[]; width?: number; height?: number }) {
+  const allValues = lines.flatMap((l) => l.data);
+  const max = Math.max(...allValues);
+  const min = Math.min(...allValues);
+  const range = max - min || 1;
+
+  return (
+    <svg width={width} height={height} style={{ overflow: "visible" }}>
+      {lines.map((line, lineIndex) => {
+        const points = line.data.map((v, i) => {
+          const x = (i / (line.data.length - 1)) * width;
+          const y = height - ((v - min) / range) * (height - 8) - 4;
+          return `${x},${y}`;
+        });
+        return (
+          <motion.polyline
+            key={lineIndex}
+            initial={{ pathLength: 0, opacity: 0 }}
+            animate={{ pathLength: 1, opacity: 1 }}
+            transition={{ duration: 1, ease: "easeOut", delay: lineIndex * 0.2 }}
+            points={points.join(" ")}
+            fill="none"
+            stroke={line.color}
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        );
+      })}
+    </svg>
+  );
+}
+
+const monthlyData = Array.from({ length: 30 }, (_, i) => ({
+  value: Math.floor(Math.random() * 15) + 3,
+  color: i < 10 ? "#5c8ac4" : i < 20 ? "#c4955c" : "#c45c5c",
+}));
+
+const stackedData = [
+  { label: "Week 1", segments: [{ value: 5, color: "#c45c5c" }, { value: 3, color: "#c4955c" }, { value: 2, color: "#5c8ac4" }] },
+  { label: "Week 2", segments: [{ value: 4, color: "#c45c5c" }, { value: 4, color: "#c4955c" }, { value: 3, color: "#5c8ac4" }] },
+  { label: "Week 3", segments: [{ value: 6, color: "#c45c5c" }, { value: 2, color: "#c4955c" }, { value: 4, color: "#5c8ac4" }] },
+  { label: "Week 4", segments: [{ value: 3, color: "#c45c5c" }, { value: 5, color: "#c4955c" }, { value: 2, color: "#5c8ac4" }] },
+];
+
+const lineData = {
+  line1: [12, 15, 11, 18, 14, 20, 17, 22, 19, 25, 21, 18],
+  line2: [8, 10, 9, 12, 11, 14, 12, 15, 13, 17, 14, 12],
+};
+
+const visualizationContent = (
+  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <div style={{ fontSize: 14, color: "#ccc", lineHeight: 1.5 }}>
+      Here's a breakdown of frustrated customer issues over the last 30 days:
+    </div>
+    <div
+      style={{
+        padding: 12,
+        background: "#111",
+        border: "1px solid #222",
+        borderRadius: 10,
+      }}
+    >
+      <div style={{ fontSize: 11, color: "#666", marginBottom: 10, fontWeight: 500 }}>
+        Issues by Category
+      </div>
+      <BarChart
+        data={[
+          { label: "Payment", value: 18, color: "#c45c5c" },
+          { label: "Access", value: 12, color: "#c4955c" },
+          { label: "Performance", value: 9, color: "#5c8ac4" },
+          { label: "Data/Export", value: 5, color: "#7c5cc4" },
+          { label: "Other", value: 3, color: "#5cc4a8" },
+        ]}
+      />
+    </div>
+    <div
+      style={{
+        padding: 12,
+        background: "#111",
+        border: "1px solid #222",
+        borderRadius: 10,
+      }}
+    >
+      <div style={{ fontSize: 11, color: "#666", marginBottom: 10, fontWeight: 500 }}>
+        Daily Volume (30 days)
+      </div>
+      <VerticalBarChart data={monthlyData} />
+    </div>
+    <div
+      style={{
+        padding: 12,
+        background: "#111",
+        border: "1px solid #222",
+        borderRadius: 10,
+      }}
+    >
+      <div style={{ fontSize: 11, color: "#666", marginBottom: 10, fontWeight: 500 }}>
+        Weekly Breakdown
+      </div>
+      <StackedBarChart data={stackedData} />
+    </div>
+    <div
+      style={{
+        padding: 12,
+        background: "#111",
+        border: "1px solid #222",
+        borderRadius: 10,
+      }}
+    >
+      <div style={{ fontSize: 11, color: "#666", marginBottom: 10, fontWeight: 500 }}>
+        Trend Comparison
+      </div>
+      <LineChart
+        lines={[
+          { data: lineData.line1, color: "#c45c5c" },
+          { data: lineData.line2, color: "#5c8ac4" },
+        ]}
+        width={480}
+        height={60}
+      />
+    </div>
+    <div style={{ fontSize: 13, color: "#888", lineHeight: 1.5 }}>
+      Payment failures are the top issue, accounting for 38% of frustrated sessions.
+      Consider prioritizing payment flow improvements.
+    </div>
+  </div>
+);
+
 // ---------------------------------------------------------------------------
 // Scenario steps — each defines what the user sees at that moment
 // ---------------------------------------------------------------------------
@@ -340,6 +538,25 @@ const steps: ScenarioStep[] = [
       { type: "meta", summary: "Found 47 sessions with negative sentiment" },
       { type: "meta", summary: "Analyzed trace patterns" },
       { type: "agent-rich", content: analysisContent },
+    ],
+  },
+
+  // 7 — Visualization
+  {
+    label: "Visualization",
+    description: "Chart showing issue breakdown",
+    promptText: "",
+    checklist: { items: [] },
+    elicitation: false,
+    messages: [
+      { type: "user", text: "Find frustrated customers in the last month" },
+      { type: "meta", summary: "Thought for 3 seconds", detail: "The user wants to find frustrated customers from the last month. I need to adjust the page filter to show the last 30 days, then search for annotations with negative sentiment." },
+      { type: "agent", text: "I'll need to adjust the page filters to show traces from the last 30 days." },
+      { type: "agent-rich", content: approvedToolContent },
+      { type: "meta", summary: "Changed filter to last 30 days" },
+      { type: "meta", summary: "Found 47 sessions with negative sentiment" },
+      { type: "meta", summary: "Analyzed trace patterns" },
+      { type: "agent-rich", content: visualizationContent },
     ],
   },
 ];
