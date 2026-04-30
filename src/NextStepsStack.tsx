@@ -169,3 +169,116 @@ export function NextStepsStack({ steps, onSelect }: NextStepsStackProps) {
     </div>
   );
 }
+
+function UnbundledStepCard({ step, onSelect }: { step: NextStep; onSelect?: (id: string) => void }) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <motion.div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={() => onSelect?.(step.id)}
+      whileTap={{ scale: 0.98 }}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+        padding: "8px 12px",
+        cursor: "pointer",
+        background: hovered ? "#151515" : "#111",
+        border: "1px solid #222",
+        borderRadius: 8,
+        transition: "background 0.12s",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 13,
+          color: hovered ? "#ccc" : "#999",
+          fontWeight: 500,
+          transition: "color 0.12s",
+        }}
+      >
+        {step.label}
+      </div>
+      {step.description && (
+        <div
+          style={{
+            fontSize: 12,
+            color: "#555",
+          }}
+        >
+          {step.description}
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+export function NextStepsUnbundled({ steps, onSelect }: NextStepsStackProps) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {steps.map((step) => (
+        <UnbundledStepCard key={step.id} step={step} onSelect={onSelect} />
+      ))}
+    </div>
+  );
+}
+
+function MinimalStepLink({ step, onSelect, isLast }: { step: NextStep; onSelect?: (id: string) => void; isLast: boolean }) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <div
+      style={{
+        borderBottom: isLast ? "none" : "1px solid #1a1a1a",
+      }}
+    >
+      <div
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onClick={() => onSelect?.(step.id)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          padding: "8px 0",
+          cursor: "pointer",
+          fontSize: 13,
+          color: hovered ? "#ccc" : "#888",
+          transition: "color 0.12s",
+        }}
+      >
+        <span style={{ flex: 1 }}>{step.label}</span>
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ opacity: hovered ? 0.6 : 0.3, transition: "opacity 0.12s" }}>
+          <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+export function NextStepsMinimal({ steps, onSelect }: NextStepsStackProps) {
+  return (
+    <div>
+      <div
+        style={{
+          fontSize: 14,
+          fontWeight: 600,
+          color: "#ccc",
+          marginTop: 12,
+          marginBottom: 2,
+        }}
+      >
+        Next steps
+      </div>
+      {steps.map((step, i) => (
+        <MinimalStepLink
+          key={step.id}
+          step={step}
+          onSelect={onSelect}
+          isLast={i === steps.length - 1}
+        />
+      ))}
+    </div>
+  );
+}

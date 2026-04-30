@@ -5,9 +5,9 @@ import { DebugPanel } from "./DebugPanel";
 import { MetaRow } from "./MetaRow";
 import { DataPreview } from "./DataPreview";
 import { PendingToolCall, ToolApprovalButtons } from "./PendingToolCall";
-import { NextStepsStack } from "./NextStepsStack";
+import { NextStepsStack, NextStepsUnbundled, NextStepsMinimal } from "./NextStepsStack";
 import { useStickToBottom } from "./useStickToBottom";
-import { useUISettings } from "./UISettingsContext";
+import { useUISettings, chartColorPalettes } from "./UISettingsContext";
 import { PerfMonitor } from "./PerfMonitor";
 import type { ChecklistState, ElicitationQuestion, ElicitationAnswers } from "./types";
 
@@ -157,16 +157,22 @@ const approvedToolContent = (
   />
 );
 
-const nextStepsContent = (
-  <NextStepsStack
-    steps={[
-      { id: "viz", label: "Create a visualization", description: "Chart sentiment trends over time", icon: "chart" },
-      { id: "export", label: "Export to CSV", description: "Download for external analysis", icon: "export" },
-      { id: "alert", label: "Set up alerts", description: "Get notified when frustration spikes", icon: "alert" },
-    ]}
-    onSelect={() => {}}
-  />
-);
+const nextStepsData = [
+  { id: "viz", label: "Create a visualization", description: "Chart sentiment trends over time", icon: "chart" as const },
+  { id: "export", label: "Export to CSV", description: "Download for external analysis", icon: "export" as const },
+  { id: "alert", label: "Set up alerts", description: "Get notified when frustration spikes", icon: "alert" as const },
+];
+
+function NextStepsContent() {
+  const { nextStepsStyle } = useUISettings();
+  if (nextStepsStyle === "minimal") {
+    return <NextStepsMinimal steps={nextStepsData} onSelect={() => {}} />;
+  }
+  if (nextStepsStyle === "unbundled") {
+    return <NextStepsUnbundled steps={nextStepsData} onSelect={() => {}} />;
+  }
+  return <NextStepsStack steps={nextStepsData} onSelect={() => {}} />;
+}
 
 const resultsTableContent = (
   <DataPreview
@@ -184,16 +190,27 @@ const resultsTableContent = (
   />
 );
 
-const analysisContent = (
-  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-    <div style={{ fontSize: 14, color: "#ccc", lineHeight: 1.5 }}>
-      I found <strong style={{ color: "#e8c48a" }}>47 sessions</strong> with frustrated customers in the last 30 days.
-      Common issues: payment failures (18), access problems (12), and slow performance (9).
+function AnalysisContent() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ fontSize: 14, color: "#ccc", lineHeight: 1.5 }}>
+        I found <strong style={{ color: "#e8c48a" }}>47 sessions</strong> with frustrated customers in the last 30 days.
+        Common issues: payment failures (18), access problems (12), and slow performance (9).
+      </div>
+      {resultsTableContent}
+      <NextStepsContent />
     </div>
-    {resultsTableContent}
-    {nextStepsContent}
-  </div>
-);
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ display: "block", cursor: "pointer" }}>
+      <path d="M8 2v8M5 7l3 3 3-3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M3 11v2a1 1 0 001 1h8a1 1 0 001-1v-2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 function BarChart({ data }: { data: { label: string; value: number; color: string }[] }) {
   const max = Math.max(...data.map((d) => d.value));
@@ -219,24 +236,74 @@ function BarChart({ data }: { data: { label: string; value: number; color: strin
   );
 }
 
-function VerticalBarChart({ data }: { data: { value: number; color: string }[] }) {
-  const max = Math.max(...data.map((d) => d.value));
+function VerticalBarChart({ data, legend, xLabels }: { data: { base: number; highlight?: number; baseColor: string; highlightColor?: string }[]; legend?: { color: string; label: string }[]; xLabels?: { index: number; label: string }[] }) {
+  const max = Math.max(...data.map((d) => d.base + (d.highlight || 0)));
+  const gridLines = [0, Math.round(max / 2), max];
+  const chartHeight = 60;
   return (
-    <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 60 }}>
-      {data.map((d, i) => (
-        <motion.div
-          key={i}
-          initial={{ height: 0 }}
-          animate={{ height: `${(d.value / max) * 100}%` }}
-          transition={{ duration: 0.5, ease: "easeOut", delay: i * 0.02 }}
-          style={{ width: 6, background: d.color, borderRadius: 2, minHeight: 2 }}
-        />
-      ))}
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div style={{ display: "flex", gap: 8, paddingRight: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", height: chartHeight, fontSize: 11, color: "#777", textAlign: "right", width: 20 }}>
+          {gridLines.slice().reverse().map((v) => <span key={v}>{v}</span>)}
+        </div>
+        <div style={{ flex: 1, position: "relative", height: chartHeight }}>
+          {gridLines.map((v) => (
+            <div key={v} style={{ position: "absolute", left: 0, right: 0, bottom: `${(v / max) * 100}%`, borderBottom: "1px solid #222" }} />
+          ))}
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: "100%", position: "relative" }}>
+            {data.map((d, i) => {
+              const total = d.base + (d.highlight || 0);
+              return (
+                <motion.div
+                  key={i}
+                  initial={{ height: 0 }}
+                  animate={{ height: `${(total / max) * 100}%` }}
+                  transition={{ duration: 0.5, ease: "easeOut", delay: i * 0.02 }}
+                  style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", borderRadius: 2, minHeight: 2, overflow: "hidden" }}
+                >
+                  {d.highlight != null && d.highlight > 0 && (
+                    <div style={{ height: `${(d.highlight / total) * 100}%`, background: d.highlightColor, minHeight: 2 }} />
+                  )}
+                  <div style={{ flex: 1, background: d.baseColor }} />
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+      {xLabels && (
+        <div style={{ marginLeft: 28, marginRight: 8, position: "relative", height: 14 }}>
+          {xLabels.map(({ index, label }) => (
+            <span
+              key={index}
+              style={{
+                position: "absolute",
+                left: `${(index / (data.length - 1)) * 100}%`,
+                transform: "translateX(-50%)",
+                fontSize: 11,
+                color: "#777",
+              }}
+            >
+              {label}
+            </span>
+          ))}
+        </div>
+      )}
+      {legend && (
+        <div style={{ display: "flex", gap: 12, marginLeft: 28, marginRight: 8 }}>
+          {legend.map((item) => (
+            <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <div style={{ width: 8, height: 8, borderRadius: 2, background: item.color }} />
+              <span style={{ fontSize: 11, color: "#777" }}>{item.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function StackedBarChart({ data }: { data: { label: string; segments: { value: number; color: string }[] }[] }) {
+function StackedBarChart({ data, legend }: { data: { label: string; segments: { value: number; color: string }[] }[]; legend?: { color: string; label: string }[] }) {
   const totals = data.map((d) => d.segments.reduce((sum, s) => sum + s.value, 0));
   const max = Math.max(...totals);
   return (
@@ -257,141 +324,215 @@ function StackedBarChart({ data }: { data: { label: string; segments: { value: n
               />
             ))}
           </div>
-          <span style={{ width: 30, fontSize: 11, color: "#777", flexShrink: 0 }}>{totals[i]}</span>
+          <span style={{ width: 40, fontSize: 11, color: "#777", flexShrink: 0 }}>{totals[i].toLocaleString()}</span>
         </div>
       ))}
+      {legend && (
+        <div style={{ display: "flex", gap: 12, marginLeft: 72, marginTop: 4 }}>
+          {legend.map((item) => (
+            <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <div style={{ width: 8, height: 8, borderRadius: 2, background: item.color }} />
+              <span style={{ fontSize: 11, color: "#777" }}>{item.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function LineChart({ lines, width = 200, height = 60 }: { lines: { data: number[]; color: string }[]; width?: number; height?: number }) {
+function LineChart({ lines, width = 200, height = 60 }: { lines: { data: number[]; color: string; label?: string }[]; width?: number; height?: number }) {
   const allValues = lines.flatMap((l) => l.data);
   const max = Math.max(...allValues);
   const min = Math.min(...allValues);
   const range = max - min || 1;
+  const gridLines = [min, Math.round((min + max) / 2), max];
+  const padding = { left: 28, top: 4, bottom: 4 };
+  const chartWidth = width - padding.left;
+  const chartHeight = height - padding.top - padding.bottom;
+  const hasLegend = lines.some((l) => l.label);
 
   return (
-    <svg width={width} height={height} style={{ overflow: "visible" }}>
-      {lines.map((line, lineIndex) => {
-        const points = line.data.map((v, i) => {
-          const x = (i / (line.data.length - 1)) * width;
-          const y = height - ((v - min) / range) * (height - 8) - 4;
-          return `${x},${y}`;
-        });
-        return (
-          <motion.polyline
-            key={lineIndex}
-            initial={{ pathLength: 0, opacity: 0 }}
-            animate={{ pathLength: 1, opacity: 1 }}
-            transition={{ duration: 1, ease: "easeOut", delay: lineIndex * 0.2 }}
-            points={points.join(" ")}
-            fill="none"
-            stroke={line.color}
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        );
-      })}
-    </svg>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <svg width={width} height={height} style={{ overflow: "visible" }}>
+        {gridLines.map((v) => {
+          const y = padding.top + chartHeight - ((v - min) / range) * chartHeight;
+          return (
+            <g key={v}>
+              <line x1={padding.left} y1={y} x2={width} y2={y} stroke="#222" strokeWidth={1} />
+              <text x={padding.left - 4} y={y + 3} fill="#555" fontSize={9} textAnchor="end">{v}</text>
+            </g>
+          );
+        })}
+        {lines.map((line, lineIndex) => {
+          const points = line.data.map((v, i) => {
+            const x = padding.left + (i / (line.data.length - 1)) * chartWidth;
+            const y = padding.top + chartHeight - ((v - min) / range) * chartHeight;
+            return `${x},${y}`;
+          });
+          return (
+            <motion.polyline
+              key={lineIndex}
+              initial={{ pathLength: 0, opacity: 0 }}
+              animate={{ pathLength: 1, opacity: 1 }}
+              transition={{ duration: 1, ease: "easeOut", delay: lineIndex * 0.2 }}
+              points={points.join(" ")}
+              fill="none"
+              stroke={line.color}
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          );
+        })}
+      </svg>
+      {hasLegend && (
+        <div style={{ display: "flex", gap: 12, marginLeft: padding.left }}>
+          {lines.filter((l) => l.label).map((line) => (
+            <div key={line.label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <div style={{ width: 8, height: 8, borderRadius: 2, background: line.color }} />
+              <span style={{ fontSize: 10, color: "#666" }}>{line.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
-const monthlyData = Array.from({ length: 30 }, (_, i) => ({
-  value: Math.floor(Math.random() * 15) + 3,
-  color: i < 10 ? "#5c8ac4" : i < 20 ? "#c4955c" : "#c45c5c",
+const monthlyDataValues = Array.from({ length: 30 }, () => ({
+  base: Math.floor(Math.random() * 15) + 5,
+  hasError: Math.random() < 0.3,
+  errorValue: Math.floor(Math.random() * 4) + 1,
 }));
-
-const stackedData = [
-  { label: "Week 1", segments: [{ value: 5, color: "#c45c5c" }, { value: 3, color: "#c4955c" }, { value: 2, color: "#5c8ac4" }] },
-  { label: "Week 2", segments: [{ value: 4, color: "#c45c5c" }, { value: 4, color: "#c4955c" }, { value: 3, color: "#5c8ac4" }] },
-  { label: "Week 3", segments: [{ value: 6, color: "#c45c5c" }, { value: 2, color: "#c4955c" }, { value: 4, color: "#5c8ac4" }] },
-  { label: "Week 4", segments: [{ value: 3, color: "#c45c5c" }, { value: 5, color: "#c4955c" }, { value: 2, color: "#5c8ac4" }] },
-];
 
 const lineData = {
   line1: [12, 15, 11, 18, 14, 20, 17, 22, 19, 25, 21, 18],
   line2: [8, 10, 9, 12, 11, 14, 12, 15, 13, 17, 14, 12],
 };
 
-const visualizationContent = (
-  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-    <div style={{ fontSize: 14, color: "#ccc", lineHeight: 1.5 }}>
-      Here's a breakdown of frustrated customer issues over the last 30 days:
-    </div>
-    <div
-      style={{
-        padding: 12,
-        background: "#111",
-        border: "1px solid #222",
-        borderRadius: 10,
-      }}
-    >
-      <div style={{ fontSize: 11, color: "#666", marginBottom: 10, fontWeight: 500 }}>
-        Issues by Category
+function VisualizationContent() {
+  const { chartColors } = useUISettings();
+  const palette = chartColorPalettes[chartColors];
+  const [c0, c1, c2, c3, c4] = palette.primary;
+
+  const monthlyData = monthlyDataValues.map((d) => ({
+    base: d.base,
+    highlight: d.hasError ? d.errorValue : 0,
+    baseColor: palette.base,
+    highlightColor: palette.highlight,
+  }));
+
+  const stackedData = [
+    { label: "Sarah", segments: [{ value: 2400, color: c3 }, { value: 1800, color: c2 }, { value: 400, color: c4 }] },
+    { label: "Michael", segments: [{ value: 1200, color: c3 }, { value: 2100, color: c2 }, { value: 900, color: c4 }] },
+    { label: "Alex", segments: [{ value: 800, color: c3 }, { value: 1400, color: c2 }, { value: 1600, color: c4 }] },
+    { label: "Jordan", segments: [{ value: 1900, color: c3 }, { value: 600, color: c2 }, { value: 200, color: c4 }] },
+    { label: "Taylor", segments: [{ value: 500, color: c3 }, { value: 1100, color: c2 }, { value: 800, color: c4 }] },
+  ];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ fontSize: 14, color: "#ccc", lineHeight: 1.5 }}>
+        Here's a breakdown of frustrated customer issues over the last 30 days:
       </div>
-      <BarChart
-        data={[
-          { label: "Payment", value: 18, color: "#c45c5c" },
-          { label: "Access", value: 12, color: "#c4955c" },
-          { label: "Performance", value: 9, color: "#5c8ac4" },
-          { label: "Data/Export", value: 5, color: "#7c5cc4" },
-          { label: "Other", value: 3, color: "#5cc4a8" },
-        ]}
-      />
-    </div>
-    <div
-      style={{
-        padding: 12,
-        background: "#111",
-        border: "1px solid #222",
-        borderRadius: 10,
-      }}
-    >
-      <div style={{ fontSize: 11, color: "#666", marginBottom: 10, fontWeight: 500 }}>
-        Daily Volume (30 days)
+      <div
+        style={{
+          padding: 12,
+          background: "#111",
+          border: "1px solid #222",
+          borderRadius: 10,
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <span style={{ fontSize: 14, color: "#777" }}>Issues by Category</span>
+          <span style={{ color: "#777" }}><DownloadIcon /></span>
+        </div>
+        <BarChart
+          data={[
+            { label: "Payment", value: 18, color: c0 },
+            { label: "Access", value: 12, color: c1 },
+            { label: "Performance", value: 9, color: c2 },
+            { label: "Data/Export", value: 5, color: c3 },
+            { label: "Other", value: 3, color: c4 },
+          ]}
+        />
       </div>
-      <VerticalBarChart data={monthlyData} />
-    </div>
-    <div
-      style={{
-        padding: 12,
-        background: "#111",
-        border: "1px solid #222",
-        borderRadius: 10,
-      }}
-    >
-      <div style={{ fontSize: 11, color: "#666", marginBottom: 10, fontWeight: 500 }}>
-        Weekly Breakdown
+      <div
+        style={{
+          padding: 12,
+          background: "#111",
+          border: "1px solid #222",
+          borderRadius: 10,
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <span style={{ fontSize: 14, color: "#777" }}>Daily Volume (30 days)</span>
+          <span style={{ color: "#777" }}><DownloadIcon /></span>
+        </div>
+        <VerticalBarChart
+          data={monthlyData}
+          xLabels={[
+            { index: 0, label: "1" },
+            { index: 9, label: "10" },
+            { index: 19, label: "20" },
+            { index: 29, label: "30" },
+          ]}
+          legend={[
+            { color: palette.base, label: "Traces" },
+            { color: palette.highlight, label: "Errors" },
+          ]}
+        />
       </div>
-      <StackedBarChart data={stackedData} />
-    </div>
-    <div
-      style={{
-        padding: 12,
-        background: "#111",
-        border: "1px solid #222",
-        borderRadius: 10,
-      }}
-    >
-      <div style={{ fontSize: 11, color: "#666", marginBottom: 10, fontWeight: 500 }}>
-        Trend Comparison
+      <div
+        style={{
+          padding: 12,
+          background: "#111",
+          border: "1px solid #222",
+          borderRadius: 10,
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <span style={{ fontSize: 14, color: "#777" }}>Token Usage by User</span>
+          <span style={{ color: "#777" }}><DownloadIcon /></span>
+        </div>
+        <StackedBarChart
+          data={stackedData}
+          legend={[
+            { color: c3, label: "opus-4-5" },
+            { color: c2, label: "opus-4-6" },
+            { color: c4, label: "haiku-4-5" },
+          ]}
+        />
       </div>
-      <LineChart
-        lines={[
-          { data: lineData.line1, color: "#c45c5c" },
-          { data: lineData.line2, color: "#5c8ac4" },
-        ]}
-        width={480}
-        height={60}
-      />
+      <div
+        style={{
+          padding: 12,
+          background: "#111",
+          border: "1px solid #222",
+          borderRadius: 10,
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <span style={{ fontSize: 14, color: "#777" }}>Trend Comparison</span>
+          <span style={{ color: "#777" }}><DownloadIcon /></span>
+        </div>
+        <LineChart
+          lines={[
+            { data: lineData.line1, color: palette.highlight, label: "Frustrated" },
+            { data: lineData.line2, color: palette.base, label: "Resolved" },
+          ]}
+          width={480}
+          height={60}
+        />
+      </div>
+      <div style={{ fontSize: 13, color: "#888", lineHeight: 1.5 }}>
+        Payment failures are the top issue, accounting for 38% of frustrated sessions.
+        Consider prioritizing payment flow improvements.
+      </div>
     </div>
-    <div style={{ fontSize: 13, color: "#888", lineHeight: 1.5 }}>
-      Payment failures are the top issue, accounting for 38% of frustrated sessions.
-      Consider prioritizing payment flow improvements.
-    </div>
-  </div>
-);
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Scenario steps — each defines what the user sees at that moment
@@ -537,7 +678,7 @@ const steps: ScenarioStep[] = [
       { type: "meta", summary: "Changed filter to last 30 days" },
       { type: "meta", summary: "Found 47 sessions with negative sentiment" },
       { type: "meta", summary: "Analyzed trace patterns" },
-      { type: "agent-rich", content: analysisContent },
+      { type: "agent-rich", content: <AnalysisContent /> },
     ],
   },
 
@@ -556,7 +697,7 @@ const steps: ScenarioStep[] = [
       { type: "meta", summary: "Changed filter to last 30 days" },
       { type: "meta", summary: "Found 47 sessions with negative sentiment" },
       { type: "meta", summary: "Analyzed trace patterns" },
-      { type: "agent-rich", content: visualizationContent },
+      { type: "agent-rich", content: <VisualizationContent /> },
     ],
   },
 ];

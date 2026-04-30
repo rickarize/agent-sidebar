@@ -654,12 +654,14 @@ function ElicitationCarousel({
   );
 }
 
+const EMPTY_ANSWERS: ElicitationAnswers = {};
+
 export function PromptWithTongue({
   checklist,
   questions,
   defaultPrompt = "",
   elicitationDelay = ELICITATION_ENTRY_DELAY,
-  defaultAnswers = {},
+  defaultAnswers = EMPTY_ANSWERS,
 }: {
   checklist: ChecklistState;
   questions?: ElicitationQuestion[];

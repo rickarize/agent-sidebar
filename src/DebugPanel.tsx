@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { useFonts, type FontPreset } from "./FontContext";
-import { useUISettings, type ButtonAlign } from "./UISettingsContext";
+import { useUISettings, type ButtonAlign, type NextStepsStyle, type ChartColorScheme } from "./UISettingsContext";
 
 interface Step {
   label: string;
@@ -23,6 +23,18 @@ const fontOptions: { value: FontPreset; label: string }[] = [
 const buttonAlignOptions: { value: ButtonAlign; label: string }[] = [
   { value: "right", label: "Right" },
   { value: "left", label: "Left" },
+];
+
+const nextStepsStyleOptions: { value: NextStepsStyle; label: string }[] = [
+  { value: "minimal", label: "Minimal" },
+  { value: "bundled", label: "Bundled" },
+  { value: "unbundled", label: "Cards" },
+];
+
+const chartColorOptions: { value: ChartColorScheme; label: string }[] = [
+  { value: "mono", label: "Mono" },
+  { value: "phoenix", label: "Phoenix" },
+  { value: "generic", label: "Generic" },
 ];
 
 function SettingsToggle({
@@ -104,6 +116,30 @@ function ButtonAlignToggle() {
       options={buttonAlignOptions}
       value={buttonAlign}
       onChange={(v) => setButtonAlign(v as ButtonAlign)}
+    />
+  );
+}
+
+function NextStepsStyleToggle() {
+  const { nextStepsStyle, setNextStepsStyle } = useUISettings();
+  return (
+    <SettingsToggle
+      label="Next steps style"
+      options={nextStepsStyleOptions}
+      value={nextStepsStyle}
+      onChange={(v) => setNextStepsStyle(v as NextStepsStyle)}
+    />
+  );
+}
+
+function ChartColorsToggle() {
+  const { chartColors, setChartColors } = useUISettings();
+  return (
+    <SettingsToggle
+      label="Chart colors"
+      options={chartColorOptions}
+      value={chartColors}
+      onChange={(v) => setChartColors(v as ChartColorScheme)}
     />
   );
 }
@@ -250,6 +286,8 @@ export function DebugPanel({ steps, activeIndex, onSelect, children }: Props) {
       {/* Settings toggles */}
       <FontToggle />
       <ButtonAlignToggle />
+      <NextStepsStyleToggle />
+      <ChartColorsToggle />
 
       <div
         style={{
